@@ -1,8 +1,17 @@
 const crypto = require('crypto');
 
 const ALGORITHM = 'aes-256-cbc';
-const ENCRYPTION_KEY = Buffer.from(process.env.PHONE_ENCRYPTION_KEY || '12345678901234567890123456789012', 'utf8');
 const IV_LENGTH = 16;
+
+// Generate a proper 32-byte key from the environment variable
+const generateKey = (secret) => {
+  // Use SHA-256 to create a consistent 32-byte key from any string
+  return crypto.createHash('sha256').update(secret).digest();
+};
+
+const ENCRYPTION_KEY = generateKey(
+  process.env.PHONE_ENCRYPTION_KEY || 'default-secret-key-change-this-in-production'
+);
 
 // Encrypt phone number
 const encryptPhone = (phoneNumber) => {
@@ -24,6 +33,10 @@ const encryptPhone = (phoneNumber) => {
 const decryptPhone = (encryptedPhone) => {
   try {
     const parts = encryptedPhone.split(':');
+    if (parts.length !== 2) {
+      throw new Error('Invalid encrypted phone format');
+    }
+    
     const iv = Buffer.from(parts[0], 'hex');
     const encryptedText = parts[1];
     
@@ -43,3 +56,6 @@ module.exports = {
   encryptPhone,
   decryptPhone
 };
+
+// Example .env configuration:
+// PHONE_ENCRYPTION_KEY=your-super-secure-random-string-here
