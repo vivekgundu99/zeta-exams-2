@@ -193,7 +193,8 @@ router.post('/register', validateRegistration, async (req, res) => {
       user: {
         userId,
         email,
-        phoneNumber
+        phoneNumber,
+        userDetails: false
       }
     });
 
@@ -208,39 +209,67 @@ router.post('/register', validateRegistration, async (req, res) => {
 });
 
 // @route   POST /api/auth/login
-// @desc    User login
+// @desc    User login (handles both admin and regular users)
 // @access  Public
-router.post('/login', authLimiter, validateLogin, async (req, res) => {
+router.post('/login', authLimiter, async (req, res) => {
   try {
     const { email, phoneNumber, password, isAdmin } = req.body;
 
+    console.log('Login attempt:', { email, isAdmin });
+
     // Admin login
     if (isAdmin) {
-      if (email !== process.env.ADMIN_EMAIL) {
+      const adminEmail = process.env.ADMIN_EMAIL;
+      const adminPassword = process.env.ADMIN_PASSWORD || 'Zeta@123';
+
+      console.log('Admin login attempt - Checking credentials...');
+      console.log('Provided email:', email);
+      console.log('Expected email:', adminEmail);
+
+      if (email !== adminEmail) {
+        console.log('Admin email mismatch');
         return res.status(401).json({
           success: false,
           message: 'Invalid admin credentials'
         });
       }
 
-      if (password !== 'Zeta@123') {
+      if (password !== adminPassword) {
+        console.log('Admin password mismatch');
         return res.status(401).json({
           success: false,
           message: 'Invalid admin credentials'
         });
       }
 
+      console.log('Admin credentials valid - generating token');
+
+      // Generate admin token
       const token = generateToken('ADMIN', email, true);
 
       return res.status(200).json({
         success: true,
         message: 'Admin login successful',
         token,
-        isAdmin: true
+        isAdmin: true,
+        user: {
+          userId: 'ADMIN',
+          email: email,
+          isAdmin: true
+        }
       });
     }
 
     // Regular user login
+    console.log('Regular user login attempt');
+
+    if (!email || !phoneNumber || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email, phone number, and password are required'
+      });
+    }
+
     const user = await User.findOne({ email });
 
     if (!user) {
@@ -291,6 +320,7 @@ router.post('/login', authLimiter, validateLogin, async (req, res) => {
       success: true,
       message: 'Login successful',
       token,
+      isAdmin: false,
       user: {
         userId: user.userId,
         email: user.email,
@@ -325,13 +355,26 @@ router.post('/logout', async (req, res) => {
 
     const token = authHeader.split(' ')[1];
     const { verifyToken } = require('../utils/jwt');
-    const decoded = verifyToken(token);
+    
+    try {
+      const decoded = verifyToken(token);
 
-    // Update login status
-    await User.updateOne(
-      { userId: decoded.userId },
-      { loginStatus: false }
-    );
+      // Skip for admin
+      if (decoded.isAdmin) {
+        return res.status(200).json({
+          success: true,
+          message: 'Logout successful'
+        });
+      }
+
+      // Update login status for regular users
+      await User.updateOne(
+        { userId: decoded.userId },
+        { loginStatus: false }
+      );
+    } catch (err) {
+      // Token invalid or expired, still return success
+    }
 
     res.status(200).json({
       success: true,

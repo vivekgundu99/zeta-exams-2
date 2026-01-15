@@ -14,6 +14,23 @@ const { decryptPhone } = require('../utils/encryption');
 // @access  Private
 router.get('/profile', authenticate, async (req, res) => {
   try {
+    // Handle admin profile request
+    if (req.user.isAdmin) {
+      return res.json({
+        success: true,
+        user: {
+          userId: 'ADMIN',
+          email: req.user.email,
+          name: 'Admin',
+          isAdmin: true,
+          userDetails: true,
+          exam: null
+        },
+        subscription: null,
+        limits: null
+      });
+    }
+
     const user = await User.findOne({ userId: req.user.userId });
     const userData = await UserData.findOne({ userId: req.user.userId });
     const subscription = await Subscription.findOne({ userId: req.user.userId });
@@ -32,7 +49,6 @@ router.get('/profile', authenticate, async (req, res) => {
       decryptedPhone = decryptPhone(user.phoneNumber);
     } catch (error) {
       console.error('Phone decryption error:', error);
-      // Keep original if decryption fails
     }
 
     // Check limits
@@ -171,7 +187,7 @@ router.post('/update-details', authenticate, async (req, res) => {
 // @access  Private
 router.put('/edit-details', authenticate, async (req, res) => {
   try {
-    const { name, profession, grade, collegeName, state, lifeAmbition } = req.body;
+    const { name, profession, grade, exam, collegeName, state, lifeAmbition } = req.body;
 
     const userData = await UserData.findOne({ userId: req.user.userId });
 
@@ -186,11 +202,20 @@ router.put('/edit-details', authenticate, async (req, res) => {
     if (name) userData.name = name.trim();
     if (profession) userData.profession = profession;
     if (grade) userData.grade = profession === 'teacher' ? 'other' : grade;
+    if (exam) userData.exam = exam;
     if (collegeName !== undefined) userData.collegeName = collegeName ? collegeName.trim() : null;
     if (state) userData.state = state;
     if (lifeAmbition !== undefined) userData.lifeAmbition = lifeAmbition ? lifeAmbition.trim() : null;
 
     await userData.save();
+
+    // Update subscription exam if changed
+    if (exam) {
+      await Subscription.updateOne(
+        { userId: req.user.userId },
+        { exam: exam }
+      );
+    }
 
     res.status(200).json({
       success: true,
@@ -199,6 +224,7 @@ router.put('/edit-details', authenticate, async (req, res) => {
         name: userData.name,
         profession: userData.profession,
         grade: userData.grade,
+        exam: userData.exam,
         collegeName: userData.collegeName,
         state: userData.state,
         lifeAmbition: userData.lifeAmbition

@@ -45,7 +45,7 @@ const authenticate = async (req, res, next) => {
       return next();
     }
     
-    // Check if user exists
+    // Check if user exists (for regular users only)
     const user = await User.findOne({ userId: decoded.userId });
     
     if (!user) {
@@ -59,7 +59,7 @@ const authenticate = async (req, res, next) => {
     req.user = {
       userId: decoded.userId,
       email: decoded.email,
-      isAdmin: decoded.isAdmin || false
+      isAdmin: false
     };
     
     next();
@@ -87,6 +87,11 @@ const isAdmin = (req, res, next) => {
 const checkSubscription = (requiredPlan) => {
   return async (req, res, next) => {
     try {
+      // Skip subscription check for admin
+      if (req.user.isAdmin) {
+        return next();
+      }
+
       const Subscription = require('../models/Subscription');
       
       const subscription = await Subscription.findOne({ userId: req.user.userId });
