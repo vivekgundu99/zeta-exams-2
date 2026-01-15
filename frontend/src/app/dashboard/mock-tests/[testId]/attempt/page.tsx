@@ -7,10 +7,17 @@ import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import { mockTestsAPI } from '@/lib/api';
 
+/* ✅ FIX: strict status union */
+type QuestionStatus =
+  | 'unanswered'
+  | 'answered'
+  | 'flagged'
+  | 'answered-flagged';
+
 export default function MockTestAttemptPage() {
   const params = useParams();
   const router = useRouter();
-  
+
   const [test, setTest] = useState<any>(null);
   const [attemptId, setAttemptId] = useState('');
   const [currentQuestion, setCurrentQuestion] = useState(0);
@@ -26,7 +33,7 @@ export default function MockTestAttemptPage() {
 
   useEffect(() => {
     if (timeLeft <= 0) return;
-    
+
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
@@ -43,16 +50,21 @@ export default function MockTestAttemptPage() {
   const startTest = async () => {
     try {
       const response = await mockTestsAPI.startTest(params.testId as string);
-      
+
       if (response.data.success) {
         const testData = response.data.test;
         const attempt = response.data.attempt;
-        
+
         setTest(testData);
         setAttemptId(attempt._id);
-        setTimeLeft(testData.duration * 60); // Convert to seconds
-        setAnswers(new Array(testData.totalQuestions).fill({ answer: '', timeTaken: 0 }));
-        
+        setTimeLeft(testData.duration * 60);
+        setAnswers(
+          new Array(testData.totalQuestions).fill({
+            answer: '',
+            timeTaken: 0,
+          })
+        );
+
         toast.success('Test started! All questions loaded.');
       }
     } catch (error: any) {
@@ -66,7 +78,7 @@ export default function MockTestAttemptPage() {
   const handleSubmit = async () => {
     try {
       const response = await mockTestsAPI.submitTest(attemptId, answers);
-      
+
       if (response.data.success) {
         toast.success('Test submitted successfully!');
         router.push(`/dashboard/mock-tests/result/${attemptId}`);
@@ -80,30 +92,38 @@ export default function MockTestAttemptPage() {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+
+    return `${hours.toString().padStart(2, '0')}:${minutes
+      .toString()
+      .padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const getQuestionStatus = (index: number) => {
+  /* ✅ FIX: explicit return type */
+  const getQuestionStatus = (index: number): QuestionStatus => {
     if (flagged.includes(index)) {
       return answers[index]?.answer ? 'answered-flagged' : 'flagged';
     }
     return answers[index]?.answer ? 'answered' : 'unanswered';
   };
 
-  const getStatusColor = (status: string) => {
-    const colors = {
-      'unanswered': 'bg-gray-200 text-gray-700',
-      'answered': 'bg-green-500 text-white',
-      'flagged': 'bg-purple-500 text-white',
+  /* ✅ FIX: safe indexing */
+  const getStatusColor = (status: QuestionStatus) => {
+    const colors: Record<QuestionStatus, string> = {
+      unanswered: 'bg-gray-200 text-gray-700',
+      answered: 'bg-green-500 text-white',
+      flagged: 'bg-purple-500 text-white',
       'answered-flagged': 'bg-blue-500 text-white',
     };
-    return colors[status] || colors.unanswered;
+
+    return colors[status];
   };
 
   if (loading) {
-    return <div className="flex justify-center items-center min-h-screen">
-      <div>Loading test...</div>
-    </div>;
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div>Loading test...</div>
+      </div>
+    );
   }
 
   if (!test) return null;
@@ -115,16 +135,25 @@ export default function MockTestAttemptPage() {
       {/* Header */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          <h1 className="text-lg font-bold text-gray-900">{test.testName}</h1>
-          
+          <h1 className="text-lg font-bold text-gray-900">
+            {test.testName}
+          </h1>
+
           <div className="flex items-center gap-4">
-            <div className={`px-4 py-2 rounded-lg font-mono font-bold ${
-              timeLeft < 600 ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
-            }`}>
+            <div
+              className={`px-4 py-2 rounded-lg font-mono font-bold ${
+                timeLeft < 600
+                  ? 'bg-red-100 text-red-700'
+                  : 'bg-blue-100 text-blue-700'
+              }`}
+            >
               ⏱️ {formatTime(timeLeft)}
             </div>
-            
-            <Button variant="danger" onClick={() => setShowSubmitModal(true)}>
+
+            <Button
+              variant="danger"
+              onClick={() => setShowSubmitModal(true)}
+            >
               Submit Test
             </Button>
           </div>
@@ -137,35 +166,45 @@ export default function MockTestAttemptPage() {
           <div className="lg:col-span-3 space-y-6">
             <div className="bg-white rounded-xl shadow-md p-6">
               <div className="flex items-center justify-between mb-6">
-                <div>
-                  <span className="text-sm text-gray-600">
-                    Question {currentQuestion + 1} of {test.totalQuestions}
-                  </span>
-                </div>
+                <span className="text-sm text-gray-600">
+                  Question {currentQuestion + 1} of {test.totalQuestions}
+                </span>
+
                 <Button
                   size="sm"
-                  variant={flagged.includes(currentQuestion) ? 'primary' : 'outline'}
-                  onClick={() => {
-                    setFlagged(prev => 
+                  variant={
+                    flagged.includes(currentQuestion)
+                      ? 'primary'
+                      : 'outline'
+                  }
+                  onClick={() =>
+                    setFlagged((prev) =>
                       prev.includes(currentQuestion)
-                        ? prev.filter(i => i !== currentQuestion)
+                        ? prev.filter((i) => i !== currentQuestion)
                         : [...prev, currentQuestion]
-                    );
-                  }}
+                    )
+                  }
                 >
-                  {flagged.includes(currentQuestion) ? '🚩 Flagged' : '🏴 Flag'}
+                  {flagged.includes(currentQuestion)
+                    ? '🚩 Flagged'
+                    : '🏴 Flag'}
                 </Button>
               </div>
 
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-4">
-                  <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                    question.questionType === 'S' 
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'bg-green-100 text-green-700'
-                  }`}>
-                    {question.questionType === 'S' ? 'Multiple Choice' : 'Numerical'}
+                  <span
+                    className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                      question.questionType === 'S'
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'bg-green-100 text-green-700'
+                    }`}
+                  >
+                    {question.questionType === 'S'
+                      ? 'Multiple Choice'
+                      : 'Numerical'}
                   </span>
+
                   <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm font-semibold">
                     {question.subject}
                   </span>
@@ -176,7 +215,11 @@ export default function MockTestAttemptPage() {
                 </div>
 
                 {question.questionImageUrl && (
-                  <img src={question.questionImageUrl} alt="Question" className="max-w-full h-auto rounded-lg mb-4" />
+                  <img
+                    src={question.questionImageUrl}
+                    alt="Question"
+                    className="max-w-full h-auto rounded-lg mb-4"
+                  />
                 )}
               </div>
 
@@ -196,18 +239,23 @@ export default function MockTestAttemptPage() {
                         type="radio"
                         name="answer"
                         value={option}
-                        checked={answers[currentQuestion]?.answer === option}
+                        checked={
+                          answers[currentQuestion]?.answer === option
+                        }
                         onChange={(e) => {
                           const newAnswers = [...answers];
                           newAnswers[currentQuestion] = {
                             answer: e.target.value,
-                            timeTaken: test.duration * 60 - timeLeft,
+                            timeTaken:
+                              test.duration * 60 - timeLeft,
                           };
                           setAnswers(newAnswers);
                         }}
                         className="mr-3"
                       />
-                      <div className="flex-1">{question[`option${option}`]}</div>
+                      <div className="flex-1">
+                        {question[`option${option}`]}
+                      </div>
                     </label>
                   ))
                 ) : (
@@ -220,7 +268,8 @@ export default function MockTestAttemptPage() {
                       const newAnswers = [...answers];
                       newAnswers[currentQuestion] = {
                         answer: e.target.value,
-                        timeTaken: test.duration * 60 - timeLeft,
+                        timeTaken:
+                          test.duration * 60 - timeLeft,
                       };
                       setAnswers(newAnswers);
                     }}
@@ -233,56 +282,44 @@ export default function MockTestAttemptPage() {
               <div className="flex gap-3">
                 <Button
                   variant="outline"
-                  onClick={() => setCurrentQuestion(Math.max(0, currentQuestion - 1))}
+                  onClick={() =>
+                    setCurrentQuestion(
+                      Math.max(0, currentQuestion - 1)
+                    )
+                  }
                   disabled={currentQuestion === 0}
                 >
                   ← Previous
                 </Button>
-                
+
                 <Button
-                  onClick={() => {
-                    if (!answers[currentQuestion]?.answer) {
-                      const newAnswers = [...answers];
-                      newAnswers[currentQuestion] = { answer: '', timeTaken: 0 };
-                      setAnswers(newAnswers);
-                    }
-                    setCurrentQuestion(Math.min(test.totalQuestions - 1, currentQuestion + 1));
-                  }}
+                  onClick={() =>
+                    setCurrentQuestion(
+                      Math.min(
+                        test.totalQuestions - 1,
+                        currentQuestion + 1
+                      )
+                    )
+                  }
                   className="flex-1"
-                  disabled={currentQuestion === test.totalQuestions - 1}
+                  disabled={
+                    currentQuestion ===
+                    test.totalQuestions - 1
+                  }
                 >
-                  {currentQuestion === test.totalQuestions - 1 ? 'Last Question' : 'Next →'}
+                  Next →
                 </Button>
               </div>
             </div>
           </div>
 
-          {/* Question Navigator */}
+          {/* Question Palette */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-xl shadow-md p-6 sticky top-24">
-              <h3 className="font-bold text-gray-900 mb-4">Question Palette</h3>
-              
-              {/* Legend */}
-              <div className="grid grid-cols-2 gap-2 mb-4 text-xs">
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-green-500 rounded"></div>
-                  <span>Answered</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-gray-200 rounded"></div>
-                  <span>Unanswered</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-purple-500 rounded"></div>
-                  <span>Flagged</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-blue-500 rounded"></div>
-                  <span>Both</span>
-                </div>
-              </div>
+              <h3 className="font-bold text-gray-900 mb-4">
+                Question Palette
+              </h3>
 
-              {/* Question Grid */}
               <div className="grid grid-cols-5 gap-2">
                 {test.questions.map((_: any, index: number) => (
                   <button
@@ -292,27 +329,13 @@ export default function MockTestAttemptPage() {
                       index === currentQuestion
                         ? 'ring-2 ring-purple-600 scale-110'
                         : ''
-                    } ${getStatusColor(getQuestionStatus(index))}`}
+                    } ${getStatusColor(
+                      getQuestionStatus(index)
+                    )}`}
                   >
                     {index + 1}
                   </button>
                 ))}
-              </div>
-
-              {/* Stats */}
-              <div className="mt-6 pt-4 border-t space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Answered:</span>
-                  <span className="font-semibold">{answers.filter(a => a?.answer).length}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Unanswered:</span>
-                  <span className="font-semibold">{test.totalQuestions - answers.filter(a => a?.answer).length}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Flagged:</span>
-                  <span className="font-semibold">{flagged.length}</span>
-                </div>
               </div>
             </div>
           </div>
@@ -320,32 +343,29 @@ export default function MockTestAttemptPage() {
       </div>
 
       {/* Submit Modal */}
-      <Modal isOpen={showSubmitModal} onClose={() => setShowSubmitModal(false)} title="Submit Test?">
+      <Modal
+        isOpen={showSubmitModal}
+        onClose={() => setShowSubmitModal(false)}
+        title="Submit Test?"
+      >
         <div className="space-y-4">
           <p className="text-gray-700">
-            Are you sure you want to submit the test? You cannot change answers after submission.
+            Are you sure you want to submit the test?
           </p>
-          
-          <div className="bg-gray-50 p-4 rounded-lg space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span>Total Questions:</span>
-              <span className="font-semibold">{test.totalQuestions}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Answered:</span>
-              <span className="font-semibold text-green-600">{answers.filter(a => a?.answer).length}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Unanswered:</span>
-              <span className="font-semibold text-red-600">{test.totalQuestions - answers.filter(a => a?.answer).length}</span>
-            </div>
-          </div>
 
           <div className="flex gap-3">
-            <Button variant="outline" onClick={() => setShowSubmitModal(false)} className="flex-1">
+            <Button
+              variant="outline"
+              onClick={() => setShowSubmitModal(false)}
+              className="flex-1"
+            >
               Cancel
             </Button>
-            <Button variant="primary" onClick={handleSubmit} className="flex-1">
+            <Button
+              variant="primary"
+              onClick={handleSubmit}
+              className="flex-1"
+            >
               Submit Test
             </Button>
           </div>
