@@ -16,8 +16,34 @@ const authenticate = async (req, res, next) => {
     
     const token = authHeader.split(' ')[1];
     
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'No token provided. Please login.'
+      });
+    }
+    
     // Verify token
-    const decoded = verifyToken(token);
+    let decoded;
+    try {
+      decoded = verifyToken(token);
+    } catch (error) {
+      console.error('Token verification error:', error.message);
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired token. Please login again.'
+      });
+    }
+    
+    // For admin users, skip user existence check
+    if (decoded.isAdmin) {
+      req.user = {
+        userId: decoded.userId,
+        email: decoded.email,
+        isAdmin: true
+      };
+      return next();
+    }
     
     // Check if user exists
     const user = await User.findOne({ userId: decoded.userId });
@@ -38,9 +64,10 @@ const authenticate = async (req, res, next) => {
     
     next();
   } catch (error) {
+    console.error('Authentication error:', error);
     return res.status(401).json({
       success: false,
-      message: 'Invalid or expired token. Please login again.'
+      message: 'Authentication failed. Please login again.'
     });
   }
 };
@@ -100,6 +127,7 @@ const checkSubscription = (requiredPlan) => {
       req.subscription = subscription;
       next();
     } catch (error) {
+      console.error('Subscription check error:', error);
       return res.status(500).json({
         success: false,
         message: 'Error checking subscription',

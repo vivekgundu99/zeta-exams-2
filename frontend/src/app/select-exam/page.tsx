@@ -1,13 +1,32 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import Button from '@/components/ui/Button';
+import { userAPI } from '@/lib/api';
 
 export default function SelectExamPage() {
   const router = useRouter();
   const [selected, setSelected] = useState<'jee' | 'neet' | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    // Check if user already has exam selected
+    checkExamStatus();
+  }, []);
+
+  const checkExamStatus = async () => {
+    try {
+      const response = await userAPI.getProfile();
+      if (response.data.success && response.data.user.exam) {
+        // User already has exam selected, redirect to subscription
+        router.push('/subscription');
+      }
+    } catch (error) {
+      console.error('Check exam status error:', error);
+    }
+  };
 
   const exams = [
     {
@@ -32,12 +51,30 @@ export default function SelectExamPage() {
     },
   ];
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (!selected) {
       toast.error('Please select an exam');
       return;
     }
-    router.push('/subscription');
+
+    try {
+      setLoading(true);
+      
+      // Update user details with selected exam
+      const response = await userAPI.editDetails({ exam: selected });
+      
+      if (response.data.success) {
+        toast.success('Exam selected successfully!');
+        router.push('/subscription');
+      } else {
+        toast.error(response.data.message || 'Failed to select exam');
+      }
+    } catch (error: any) {
+      console.error('Select exam error:', error);
+      toast.error(error.response?.data?.message || 'Failed to select exam');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -52,7 +89,7 @@ export default function SelectExamPage() {
           {exams.map((exam) => (
             <div
               key={exam.id}
-              onClick={() => setSelected(exam.id as any)}
+              onClick={() => setSelected(exam.id as 'jee' | 'neet')}
               className={`
                 bg-white rounded-2xl shadow-xl p-8 cursor-pointer transition-all duration-300
                 ${selected === exam.id 
@@ -91,6 +128,10 @@ export default function SelectExamPage() {
                 fullWidth
                 className="mt-6"
                 variant={selected === exam.id ? 'primary' : 'outline'}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelected(exam.id as 'jee' | 'neet');
+                }}
               >
                 {selected === exam.id ? '✓ Selected' : `Select ${exam.title}`}
               </Button>
@@ -99,8 +140,13 @@ export default function SelectExamPage() {
         </div>
 
         <div className="text-center">
-          <Button size="lg" onClick={handleContinue} disabled={!selected}>
-            Continue to Subscription
+          <Button 
+            size="lg" 
+            onClick={handleContinue} 
+            disabled={!selected || loading}
+            isLoading={loading}
+          >
+            {loading ? 'Saving...' : 'Continue to Subscription'}
           </Button>
         </div>
       </div>

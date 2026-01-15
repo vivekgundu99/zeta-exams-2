@@ -27,7 +27,13 @@ router.get('/profile', authenticate, async (req, res) => {
     }
 
     // Decrypt phone number
-    const decryptedPhone = decryptPhone(user.phoneNumber);
+    let decryptedPhone = user.phoneNumber;
+    try {
+      decryptedPhone = decryptPhone(user.phoneNumber);
+    } catch (error) {
+      console.error('Phone decryption error:', error);
+      // Keep original if decryption fails
+    }
 
     // Check limits
     const limitStatus = limits ? limits.checkLimits() : null;
@@ -72,9 +78,41 @@ router.get('/profile', authenticate, async (req, res) => {
 // @route   POST /api/user/update-details
 // @desc    Update user details (first time setup)
 // @access  Private
-router.post('/update-details', authenticate, validateUserDetails, async (req, res) => {
+router.post('/update-details', authenticate, async (req, res) => {
   try {
     const { name, profession, grade, exam, collegeName, state, lifeAmbition } = req.body;
+
+    // Validate required fields
+    if (!name || !profession || !exam) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name, profession, and exam are required'
+      });
+    }
+
+    // Validate profession
+    if (!['student', 'teacher'].includes(profession)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid profession'
+      });
+    }
+
+    // Validate exam
+    if (!['jee', 'neet'].includes(exam)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid exam type'
+      });
+    }
+
+    // Validate grade for students
+    if (profession === 'student' && !grade) {
+      return res.status(400).json({
+        success: false,
+        message: 'Grade is required for students'
+      });
+    }
 
     const userData = await UserData.findOne({ userId: req.user.userId });
 
@@ -86,13 +124,13 @@ router.post('/update-details', authenticate, validateUserDetails, async (req, re
     }
 
     // Update user details
-    userData.name = name;
+    userData.name = name.trim();
     userData.profession = profession;
-    userData.grade = profession === 'teacher' ? 'other' : grade;
+    userData.grade = profession === 'teacher' ? 'other' : (grade || 'other');
     userData.exam = exam;
-    userData.collegeName = collegeName;
-    userData.state = state;
-    userData.lifeAmbition = lifeAmbition;
+    userData.collegeName = collegeName ? collegeName.trim() : null;
+    userData.state = state || null;
+    userData.lifeAmbition = lifeAmbition ? lifeAmbition.trim() : null;
     userData.userDetails = true;
 
     await userData.save();
@@ -100,7 +138,7 @@ router.post('/update-details', authenticate, validateUserDetails, async (req, re
     // Update subscription exam
     await Subscription.updateOne(
       { userId: req.user.userId },
-      { exam }
+      { exam: exam }
     );
 
     res.status(200).json({
@@ -145,12 +183,12 @@ router.put('/edit-details', authenticate, async (req, res) => {
     }
 
     // Update only provided fields
-    if (name) userData.name = name;
+    if (name) userData.name = name.trim();
     if (profession) userData.profession = profession;
     if (grade) userData.grade = profession === 'teacher' ? 'other' : grade;
-    if (collegeName) userData.collegeName = collegeName;
+    if (collegeName !== undefined) userData.collegeName = collegeName ? collegeName.trim() : null;
     if (state) userData.state = state;
-    if (lifeAmbition) userData.lifeAmbition = lifeAmbition;
+    if (lifeAmbition !== undefined) userData.lifeAmbition = lifeAmbition ? lifeAmbition.trim() : null;
 
     await userData.save();
 
@@ -188,6 +226,13 @@ router.post('/change-password', authenticate, async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Current password and new password are required'
+      });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 8 characters'
       });
     }
 

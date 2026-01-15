@@ -37,23 +37,30 @@ export default function LoginPage() {
       });
 
       if (response.data.success) {
+        // Store token and user data
         storage.set('token', response.data.token);
-        storage.set('user', response.data.user);
-        storage.set('isAdmin', response.data.isAdmin);
+        storage.set('isAdmin', response.data.isAdmin || false);
+        
+        if (response.data.user) {
+          storage.set('user', response.data.user);
+        }
 
         toast.success('Login successful!');
 
+        // Navigate based on user type and status
         if (response.data.isAdmin) {
           router.push('/admin');
-        } else if (!response.data.user.userDetails) {
+        } else if (!response.data.user?.userDetails) {
           router.push('/user-details');
-        } else if (!response.data.user.exam) {
+        } else if (!response.data.user?.exam) {
           router.push('/select-exam');
         } else {
-          router.push('/subscription');
+          router.push('/dashboard');
         }
       }
     } catch (error: any) {
+      console.error('Login error:', error);
+      
       if (error.response?.data?.code === 'ALREADY_LOGGED_IN') {
         const confirm = window.confirm(
           'Already logged in from another device. Logout from all devices?'
@@ -68,7 +75,8 @@ export default function LoginPage() {
           }
         }
       } else {
-        toast.error(error.response?.data?.message || 'Login failed');
+        const errorMessage = error.response?.data?.message || 'Login failed';
+        toast.error(errorMessage);
       }
     } finally {
       setIsLoading(false);
@@ -102,7 +110,7 @@ export default function LoginPage() {
             <Input
               label="Email Address"
               type="email"
-              placeholder="vivekgundu999@gmail.com"
+              placeholder="your@email.com"
               {...register('email', {
                 required: 'Email is required',
                 pattern: {
@@ -141,7 +149,7 @@ export default function LoginPage() {
                   },
                 })}
                 error={errors.phoneNumber?.message}
-                helperText="Used for account security"
+                helperText="10-digit Indian mobile number"
                 leftIcon={
                   <svg
                     className="w-5 h-5"
