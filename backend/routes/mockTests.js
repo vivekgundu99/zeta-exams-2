@@ -1,0 +1,362 @@
+const express = require('express');
+const router = express.Router();
+const MockTest = require('../models/MockTest');
+const MockTestAttempt = require('../models/MockTestAttempt');
+const Limits = require('../models/Limits');
+const Analytics = require('../models/Analytics');
+const Subscription = require('../models/Subscription');
+const { authenticate } = require('../middleware/auth');
+const { needsLimitReset, getNextResetTime } = require('../utils/helpers');
+
+// @route   GET /api/mock-tests/list
+// @desc    Get all mock tests
+// @access  Private
+router.get('/list', authenticate, async (req, res) => {
+  try {
+    const { examType, filter } = req.query;
+
+    const tests = await MockTest.find({ examType })
+      .select('-questions')
+      .sort({ createdAt: -1 });
+
+    // Get user's attempts
+    const attempts = await MockTestAttempt.find({ 
+      userId: req.user.userId,
+      status: 'completed'
+    });
+
+    let filteredTests = tests;
+
+    if (filter === 'attempted') {
+      const attemptedTestIds = attempts.map(a => a.testId);
+      filteredTests = tests.filter(t => attemptedTestIds.includes(t.testId));
+    } else if (filter === 'unattempted') {
+      const attemptedTestIds = attempts.map(a => a.testId);
+      filteredTests = tests.filter(t => !attemptedTestIds.includes(t.testId));
+    }
+
+    res.json({
+      success: true,
+      count: filteredTests.length,
+      tests: filteredTests
+    });
+
+  } catch (error) {
+    console.error('Get mock tests error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+});
+
+// @route   GET /api/mock-tests/:testId
+// @desc    Get mock test details
+// @access  Private
+router.get('/:testId', authenticate, async (req, res) => {
+  try {
+    const test = await MockTest.findOne({ testId: req.params.testId });
+
+    if (!test) {
+      return res.status(404).json({
+        success: false,
+        message: 'Mock test not found'
+      });
+    }
+
+    // Don't send questions yet, only test info
+    const testInfo = {
+      testId: test.testId,
+      testName: test.testName,
+      examType: test.examType,
+      duration: test.duration,
+      totalQuestions: test.totalQuestions,
+      createdAt: test.createdAt
+    };
+
+    res.json({
+      success: true,
+      test: testInfo
+    });
+
+  } catch (error) {
+    console.error('Get mock test error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+});
+
+// @route   POST /api/mock-tests/start
+// @desc    Start a mock test attempt
+// @access  Private
+router.post('/start', authenticate, async (req, res) => {
+  try {
+    const { testId } = req.body;
+
+    // Check for ongoing test
+    const ongoingTest = await MockTestAttempt.findOne({
+      userId: req.user.userId,
+      status: 'ongoing'
+    });
+
+    if (ongoingTest) {
+      return res.status(400).json({
+        success: false,
+        message: 'You have an ongoing test. Please complete it first.',
+        ongoingTest
+      });
+    }
+
+    // Check and reset limits if needed
+    const limits = await Limits.findOne({ userId: req.user.userId });
+    
+    if (limits && needsLimitReset(limits.limitResetTime)) {
+      limits.mockTestCount = 0;
+      limits.mockTestCountLimitReached = false;
+      limits.limitResetTime = getNextResetTime();
+      await limits.save();
+    }
+
+    // Check mock test limit
+    const limitStatus = limits.checkLimits();
+    if (limitStatus.mockTests.reached) {
+      return res.status(403).json({
+        success: false,
+        message: 'Daily mock test limit reached',
+        limit: limitStatus.mockTests
+      });
+    }
+
+    // Get the test
+    const test = await MockTest.findOne({ testId });
+
+    if (!test) {
+      return res.status(404).json({
+        success: false,
+        message: 'Mock test not found'
+      });
+    }
+
+    // Create attempt
+    const attempt = await MockTestAttempt.create({
+      userId: req.user.userId,
+      testId: test.testId,
+      examType: test.examType,
+      testName: test.testName,
+      status: 'ongoing',
+      startTime: new Date(),
+      totalQuestions: test.totalQuestions,
+      answers: []
+    });
+
+    // Increment mock test count
+    limits.mockTestCount += 1;
+    await limits.save();
+
+    // Send full test with questions
+    res.json({
+      success: true,
+      test: {
+        testId: test.testId,
+        testName: test.testName,
+        examType: test.examType,
+        duration: test.duration,
+        totalQuestions: test.totalQuestions,
+        questions: test.questions
+      },
+      attempt: {
+        _id: attempt._id,
+        startTime: attempt.startTime
+      }
+    });
+
+  } catch (error) {
+    console.error('Start mock test error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+});
+
+// @route   POST /api/mock-tests/submit
+// @desc    Submit mock test
+// @access  Private
+router.post('/submit', authenticate, async (req, res) => {
+  try {
+    const { attemptId, answers } = req.body;
+
+    const attempt = await MockTestAttempt.findById(attemptId);
+
+    if (!attempt) {
+      return res.status(404).json({
+        success: false,
+        message: 'Attempt not found'
+      });
+    }
+
+    if (attempt.userId !== req.user.userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized'
+      });
+    }
+
+    // Get the test to check answers
+    const test = await MockTest.findOne({ testId: attempt.testId });
+
+    if (!test) {
+      return res.status(404).json({
+        success: false,
+        message: 'Test not found'
+      });
+    }
+
+    // Calculate results
+    const processedAnswers = answers.map((answer, index) => {
+      const question = test.questions[index];
+      const isCorrect = answer.answer === question.answer;
+
+      return {
+        questionIndex: index,
+        userAnswer: answer.answer || '',
+        correctAnswer: question.answer,
+        isCorrect,
+        timeTaken: answer.timeTaken || 0,
+        flagged: answer.flagged || false
+      };
+    });
+
+    attempt.answers = processedAnswers;
+    attempt.endTime = new Date();
+    attempt.status = 'completed';
+    attempt.timeTaken = Math.round((attempt.endTime - attempt.startTime) / 60000); // minutes
+
+    // Calculate results
+    attempt.calculateResults();
+    await attempt.save();
+
+    // Update analytics for Gold users
+    const subscription = await Subscription.findOne({ userId: req.user.userId });
+    
+    if (subscription && subscription.subscription === 'gold') {
+      let analytics = await Analytics.findOne({ userId: req.user.userId });
+      
+      if (analytics) {
+        analytics.overallStats.totalMockTests += 1;
+        await analytics.save();
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Test submitted successfully',
+      results: {
+        attemptId: attempt._id,
+        score: attempt.score,
+        totalQuestions: attempt.totalQuestions,
+        correctAnswers: attempt.correctAnswers,
+        incorrectAnswers: attempt.incorrectAnswers,
+        unanswered: attempt.unanswered,
+        accuracy: attempt.accuracy
+      }
+    });
+
+  } catch (error) {
+    console.error('Submit mock test error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+});
+
+// @route   GET /api/mock-tests/attempts
+// @desc    Get user's mock test attempts
+// @access  Private
+router.get('/attempts', authenticate, async (req, res) => {
+  try {
+    const attempts = await MockTestAttempt.find({ 
+      userId: req.user.userId 
+    }).sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      count: attempts.length,
+      attempts
+    });
+
+  } catch (error) {
+    console.error('Get attempts error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+});
+
+// @route   GET /api/mock-tests/result/:attemptId
+// @desc    Get mock test result
+// @access  Private
+router.get('/result/:attemptId', authenticate, async (req, res) => {
+  try {
+    const attempt = await MockTestAttempt.findById(req.params.attemptId);
+
+    if (!attempt) {
+      return res.status(404).json({
+        success: false,
+        message: 'Attempt not found'
+      });
+    }
+
+    if (attempt.userId !== req.user.userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized'
+      });
+    }
+
+    // Get test to include questions and explanations
+    const test = await MockTest.findOne({ testId: attempt.testId });
+
+    const detailedResults = attempt.answers.map((answer, index) => {
+      const question = test.questions[index];
+      return {
+        ...answer.toObject(),
+        question: question.question,
+        questionType: question.questionType,
+        optionA: question.optionA,
+        optionB: question.optionB,
+        optionC: question.optionC,
+        optionD: question.optionD,
+        explanation: question.explanation,
+        explanationImageUrl: question.explanationImageUrl
+      };
+    });
+
+    res.json({
+      success: true,
+      attempt: {
+        ...attempt.toObject(),
+        detailedResults
+      }
+    });
+
+  } catch (error) {
+    console.error('Get result error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+});
+
+module.exports = router;
