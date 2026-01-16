@@ -42,6 +42,11 @@ if (!process.env.JWT_SECRET) {
   }
 }
 
+// FIX: CRITICAL - Trust proxy for Vercel deployment
+// This must be set BEFORE any middleware that uses req.ip
+app.set('trust proxy', 1);
+console.log('✅ Trust proxy enabled for Vercel');
+
 // Security Middleware
 app.use(helmet());
 app.use(compression());
@@ -50,7 +55,7 @@ app.use(compression());
 const corsOptions = {
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 };
 
@@ -99,7 +104,8 @@ app.get('/api/health', (req, res) => {
       mongodb: process.env.MONGODB_URI ? 'configured' : 'missing',
       jwtSecret: process.env.JWT_SECRET ? 'configured' : 'missing',
       resend: process.env.RESEND_API_KEY ? 'configured' : 'missing',
-      razorpay: process.env.RAZORPAY_KEY_ID ? 'configured' : 'missing'
+      razorpay: process.env.RAZORPAY_KEY_ID ? 'configured' : 'missing',
+      trustProxy: app.get('trust proxy') ? 'enabled' : 'disabled'
     }
   };
   

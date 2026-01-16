@@ -10,6 +10,15 @@ const apiLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  // FIX: Use simpler key generator for Vercel
+  keyGenerator: (req) => {
+    return req.headers['x-real-ip'] || req.headers['x-forwarded-for']?.split(',')[0] || req.ip || 'unknown';
+  },
+  skipFailedRequests: true,
+  skip: (req) => {
+    // Skip rate limiting for health checks
+    return req.path === '/api/health';
+  }
 });
 
 // Strict rate limiter for authentication routes
@@ -22,6 +31,11 @@ const authLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  // FIX: Use simpler key generator for Vercel
+  keyGenerator: (req) => {
+    return req.headers['x-real-ip'] || req.headers['x-forwarded-for']?.split(',')[0] || req.ip || 'unknown';
+  },
+  skipFailedRequests: true,
 });
 
 // OTP rate limiter
@@ -34,6 +48,10 @@ const otpLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => {
+    return req.headers['x-real-ip'] || req.headers['x-forwarded-for']?.split(',')[0] || req.ip || 'unknown';
+  },
+  skipFailedRequests: true,
 });
 
 // Payment rate limiter
@@ -46,6 +64,10 @@ const paymentLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => {
+    return req.headers['x-real-ip'] || req.headers['x-forwarded-for']?.split(',')[0] || req.ip || 'unknown';
+  },
+  skipFailedRequests: true,
 });
 
 module.exports = {

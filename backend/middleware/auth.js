@@ -21,17 +21,19 @@ const authenticate = async (req, res, next) => {
       });
     }
     
-    const token = authHeader.split(' ')[1];
+    // FIX: Better token extraction - remove 'Bearer ' prefix and trim
+    const token = authHeader.replace('Bearer ', '').trim();
     
-    if (!token) {
-      console.log('❌ Token is empty after split');
+    // FIX: Check for invalid token values
+    if (!token || token === 'null' || token === 'undefined' || token === '') {
+      console.log('❌ Token is empty or invalid');
       return res.status(401).json({
         success: false,
         message: 'No token provided. Please login.'
       });
     }
     
-    console.log('🔑 Token received:', token.substring(0, 20) + '...');
+    console.log('🔑 Token received (first 20 chars):', token.substring(0, 20) + '...');
     
     // Verify token
     let decoded;

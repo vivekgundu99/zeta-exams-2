@@ -213,31 +213,55 @@ export const debounce = <T extends (...args: any[]) => any>(
   };
 };
 
-// Local storage helpers
+// FIX: Enhanced local storage helpers with better error handling
 export const storage = {
   get: (key: string) => {
     if (typeof window === 'undefined') return null;
     try {
       const item = window.localStorage.getItem(key);
-      return item ? JSON.parse(item) : null;
-    } catch {
+      if (!item || item === 'undefined' || item === 'null') return null;
+      return JSON.parse(item);
+    } catch (error) {
+      console.error(`Storage get error for key "${key}":`, error);
       return null;
     }
   },
+  
   set: (key: string, value: any) => {
     if (typeof window === 'undefined') return;
     try {
+      // Don't store null or undefined
+      if (value === null || value === undefined) {
+        window.localStorage.removeItem(key);
+        return;
+      }
       window.localStorage.setItem(key, JSON.stringify(value));
-    } catch {
-      // Handle error silently
+      console.log(`✅ Storage set: ${key}`);
+    } catch (error) {
+      console.error(`Storage set error for key "${key}":`, error);
     }
   },
+  
   remove: (key: string) => {
     if (typeof window === 'undefined') return;
     try {
       window.localStorage.removeItem(key);
-    } catch {
-      // Handle error silently
+      console.log(`✅ Storage removed: ${key}`);
+    } catch (error) {
+      console.error(`Storage remove error for key "${key}":`, error);
     }
   },
+  
+  // FIX: Add clear method to remove all auth-related data
+  clearAuth: () => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.removeItem('token');
+      window.localStorage.removeItem('user');
+      window.localStorage.removeItem('isAdmin');
+      console.log('✅ Auth storage cleared');
+    } catch (error) {
+      console.error('Storage clearAuth error:', error);
+    }
+  }
 };

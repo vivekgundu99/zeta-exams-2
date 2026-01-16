@@ -17,17 +17,23 @@ api.interceptors.request.use(
   (config) => {
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('token');
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-        console.log('Request with token to:', config.url);
+      
+      // FIX: Ensure token is valid before adding to headers
+      if (token && token !== 'null' && token !== 'undefined' && token.trim() !== '') {
+        // FIX: Clean the token - remove any quotes or extra whitespace
+        const cleanToken = token.replace(/^["']|["']$/g, '').trim();
+        
+        config.headers.Authorization = `Bearer ${cleanToken}`;
+        console.log('✅ Request with token to:', config.url);
+        console.log('   Token preview:', cleanToken.substring(0, 20) + '...');
       } else {
-        console.log('Request without token to:', config.url);
+        console.log('⚠️ Request without token to:', config.url);
       }
     }
     return config;
   },
   (error) => {
-    console.error('Request interceptor error:', error);
+    console.error('❌ Request interceptor error:', error);
     return Promise.reject(error);
   }
 );
@@ -35,19 +41,20 @@ api.interceptors.request.use(
 // Response interceptor for error handling
 api.interceptors.response.use(
   (response) => {
-    console.log('Response received from:', response.config.url, 'Status:', response.status);
+    console.log('✅ Response received from:', response.config.url, 'Status:', response.status);
     return response;
   },
   (error) => {
-    console.error('API Error:', {
+    console.error('❌ API Error:', {
       url: error.config?.url,
       method: error.config?.method,
       status: error.response?.status,
-      message: error.response?.data?.message || error.message
+      message: error.response?.data?.message || error.message,
+      data: error.response?.data
     });
 
     if (!error.response) {
-      console.error('Network error - no response received');
+      console.error('🔴 Network error - no response received');
       return Promise.reject({
         response: {
           data: {
@@ -61,13 +68,18 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       const currentPath = window.location.pathname;
       
+      // Don't redirect if already on login/register pages
       if (!currentPath.includes('/login') && !currentPath.includes('/register') && currentPath !== '/') {
-        console.log('401 error - redirecting to login');
+        console.log('🔴 401 error - clearing auth and redirecting to login');
         if (typeof window !== 'undefined') {
           localStorage.removeItem('token');
           localStorage.removeItem('user');
           localStorage.removeItem('isAdmin');
-          window.location.href = '/';
+          
+          // Add a small delay to ensure storage is cleared
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 100);
         }
       }
     }
@@ -104,7 +116,7 @@ export const userAPI = {
   getProfile: () =>
     api.get('/api/user/profile'),
   
-  // FIX: This should be POST as defined in backend
+  // FIX: POST method as defined in backend
   updateDetails: (data: any) =>
     api.post('/api/user/update-details', data),
   
