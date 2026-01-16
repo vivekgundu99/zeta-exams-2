@@ -1,5 +1,4 @@
-// frontend/src/app/dashboard/support/page.tsx - NEW FILE
-// OR add this to your dashboard menu as a tickets section
+// frontend/src/app/dashboard/support/page.tsx - COMPLETE FIXED VERSION
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -9,7 +8,7 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
 import Loader from '@/components/ui/Loader';
-import axios from 'axios';
+import { storage } from '@/lib/utils';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://zeta-exams-backend-2.vercel.app';
 
@@ -27,22 +26,56 @@ export default function TicketsPage() {
     loadTickets();
   }, []);
 
+  const getAuthHeaders = () => {
+    const token = storage.get('token');
+    console.log('🔑 Getting auth headers, token exists:', !!token);
+    
+    if (!token) {
+      console.error('❌ No token found in storage');
+      toast.error('Please login again');
+      return null;
+    }
+    
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    };
+  };
+
   const loadTickets = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      console.log('📋 Loading tickets...');
       
-      const response = await axios.get(`${API_URL}/api/tickets/my-tickets`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      const headers = getAuthHeaders();
+      if (!headers) {
+        setLoading(false);
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/api/tickets/my-tickets`, {
+        method: 'GET',
+        headers,
       });
 
-      if (response.data.success) {
-        setTickets(response.data.tickets || []);
+      console.log('📋 Tickets response status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to load tickets');
+      }
+
+      const data = await response.json();
+      console.log('✅ Tickets loaded:', data);
+
+      if (data.success) {
+        setTickets(data.tickets || []);
+      } else {
+        throw new Error(data.message || 'Failed to load tickets');
       }
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to load tickets');
+      console.error('💥 Load tickets error:', error);
+      toast.error(error.message || 'Failed to load tickets');
     } finally {
       setLoading(false);
     }
@@ -61,26 +94,41 @@ export default function TicketsPage() {
 
     try {
       setCreating(true);
-      const token = localStorage.getItem('token');
+      console.log('🎫 Creating ticket with issue:', issue);
 
-      const response = await axios.post(
-        `${API_URL}/api/tickets/create`,
-        { issue: issue.trim() },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const headers = getAuthHeaders();
+      if (!headers) {
+        setCreating(false);
+        return;
+      }
 
-      if (response.data.success) {
+      const response = await fetch(`${API_URL}/api/tickets/create`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ issue: issue.trim() }),
+      });
+
+      console.log('🎫 Create ticket response status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create ticket');
+      }
+
+      const data = await response.json();
+      console.log('✅ Ticket created:', data);
+
+      if (data.success) {
         toast.success('Ticket created successfully!');
         setShowCreateModal(false);
         setIssue('');
         loadTickets();
+      } else {
+        throw new Error(data.message || 'Failed to create ticket');
       }
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to create ticket');
+      console.error('💥 Create ticket error:', error);
+      toast.error(error.message || 'Failed to create ticket');
     } finally {
       setCreating(false);
     }
@@ -99,29 +147,44 @@ export default function TicketsPage() {
 
     try {
       setSending(true);
-      const token = localStorage.getItem('token');
+      console.log('💬 Sending reply to ticket:', selectedTicket.ticketNumber);
 
-      const response = await axios.post(
-        `${API_URL}/api/tickets/add-message`,
-        {
+      const headers = getAuthHeaders();
+      if (!headers) {
+        setSending(false);
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/api/tickets/add-message`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
           ticketNumber: selectedTicket.ticketNumber,
           message: replyMessage.trim(),
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+        }),
+      });
 
-      if (response.data.success) {
+      console.log('💬 Reply response status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to send message');
+      }
+
+      const data = await response.json();
+      console.log('✅ Reply sent:', data);
+
+      if (data.success) {
         toast.success('Message sent successfully!');
         setReplyMessage('');
-        setSelectedTicket(response.data.ticket);
+        setSelectedTicket(data.ticket);
         loadTickets();
+      } else {
+        throw new Error(data.message || 'Failed to send message');
       }
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to send message');
+      console.error('💥 Send reply error:', error);
+      toast.error(error.message || 'Failed to send message');
     } finally {
       setSending(false);
     }
@@ -133,24 +196,36 @@ export default function TicketsPage() {
     }
 
     try {
-      const token = localStorage.getItem('token');
+      console.log('💰 Requesting refund for ticket:', ticketNumber);
 
-      const response = await axios.post(
-        `${API_URL}/api/tickets/request-refund`,
-        { ticketNumber },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const headers = getAuthHeaders();
+      if (!headers) return;
 
-      if (response.data.success) {
+      const response = await fetch(`${API_URL}/api/tickets/request-refund`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ ticketNumber }),
+      });
+
+      console.log('💰 Refund request response status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to request refund');
+      }
+
+      const data = await response.json();
+      console.log('✅ Refund requested:', data);
+
+      if (data.success) {
         toast.success('Refund request submitted!');
         loadTickets();
+      } else {
+        throw new Error(data.message || 'Failed to request refund');
       }
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to request refund');
+      console.error('💥 Request refund error:', error);
+      toast.error(error.message || 'Failed to request refund');
     }
   };
 

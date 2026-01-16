@@ -1,4 +1,6 @@
-// backend/routes/tickets.js - FIXED VERSION
+// backend/routes/tickets.js - ENHANCED VERSION WITH LOGGING
+'use client';
+
 const express = require('express');
 const router = express.Router();
 const Ticket = require('../models/Ticket');
@@ -14,11 +16,18 @@ router.post('/create', authenticate, async (req, res) => {
   try {
     const { issue } = req.body;
 
-    console.log('🎫 POST /api/tickets/create');
-    console.log('   User:', req.user.userId);
+    console.log('');
+    console.log('🎫 ========================================');
+    console.log('🎫 CREATE TICKET REQUEST');
+    console.log('🎫 ========================================');
+    console.log('   User ID:', req.user.userId);
+    console.log('   User Email:', req.user.email);
     console.log('   Issue:', issue);
+    console.log('   Issue length:', issue?.length || 0);
 
+    // Validate issue
     if (!issue || issue.trim().length === 0) {
+      console.log('❌ Validation failed: Issue is empty');
       return res.status(400).json({
         success: false,
         message: 'Issue description is required'
@@ -26,6 +35,7 @@ router.post('/create', authenticate, async (req, res) => {
     }
 
     if (issue.length > 150) {
+      console.log('❌ Validation failed: Issue too long');
       return res.status(400).json({
         success: false,
         message: 'Issue description must not exceed 150 characters'
@@ -33,13 +43,14 @@ router.post('/create', authenticate, async (req, res) => {
     }
 
     // Check if user already has an active ticket
+    console.log('🔍 Checking for existing active tickets...');
     const activeTicket = await Ticket.findOne({
       userId: req.user.userId,
       status: 'active'
     });
 
     if (activeTicket) {
-      console.log('❌ User already has an active ticket:', activeTicket.ticketNumber);
+      console.log('❌ User already has active ticket:', activeTicket.ticketNumber);
       return res.status(400).json({
         success: false,
         message: 'You already have an active ticket',
@@ -47,21 +58,33 @@ router.post('/create', authenticate, async (req, res) => {
       });
     }
 
+    console.log('✅ No active tickets found');
+
     // Get user details
+    console.log('👤 Fetching user details...');
     const user = await User.findOne({ userId: req.user.userId });
     const userData = await UserData.findOne({ userId: req.user.userId });
 
     if (!user || !userData) {
       console.log('❌ User data not found');
+      console.log('   User exists:', !!user);
+      console.log('   UserData exists:', !!userData);
       return res.status(404).json({
         success: false,
         message: 'User data not found'
       });
     }
 
-    const ticketNumber = generateTicketNumber();
-    console.log('✅ Generated ticket number:', ticketNumber);
+    console.log('✅ User details found:');
+    console.log('   Email:', user.email);
+    console.log('   Name:', userData.name || 'User');
 
+    // Generate ticket number
+    const ticketNumber = generateTicketNumber();
+    console.log('🎟️ Generated ticket number:', ticketNumber);
+
+    // Create ticket
+    console.log('💾 Creating ticket in database...');
     const ticket = await Ticket.create({
       ticketNumber,
       userId: req.user.userId,
@@ -78,9 +101,12 @@ router.post('/create', authenticate, async (req, res) => {
       refundEligible: false
     });
 
-    console.log('✅ Ticket created successfully:', ticket.ticketNumber);
+    console.log('✅ Ticket created successfully');
+    console.log('   Ticket ID:', ticket._id);
+    console.log('   Ticket Number:', ticket.ticketNumber);
 
     // Update user data with ticket info
+    console.log('📝 Updating UserData with ticket info...');
     await UserData.updateOne(
       { userId: req.user.userId },
       { 
@@ -89,7 +115,9 @@ router.post('/create', authenticate, async (req, res) => {
       }
     );
 
-    console.log('✅ User data updated with ticket info');
+    console.log('✅ UserData updated');
+    console.log('🎫 ========================================');
+    console.log('');
 
     res.status(201).json({
       success: true,
@@ -107,10 +135,18 @@ router.post('/create', authenticate, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('💥 Create ticket error:', error);
+    console.error('');
+    console.error('💥 ========================================');
+    console.error('💥 CREATE TICKET ERROR');
+    console.error('💥 ========================================');
+    console.error('Error:', error);
+    console.error('Stack:', error.stack);
+    console.error('💥 ========================================');
+    console.error('');
+    
     res.status(500).json({
       success: false,
-      message: 'Server error',
+      message: 'Server error while creating ticket',
       error: error.message
     });
   }
@@ -121,12 +157,14 @@ router.post('/create', authenticate, async (req, res) => {
 // @access  Private
 router.get('/my-tickets', authenticate, async (req, res) => {
   try {
-    console.log('📋 GET /api/tickets/my-tickets - User:', req.user.userId);
+    console.log('');
+    console.log('📋 GET MY TICKETS - User:', req.user.userId);
 
     const tickets = await Ticket.find({ userId: req.user.userId })
       .sort({ createdAt: -1 });
 
-    console.log('✅ Found tickets:', tickets.length);
+    console.log('✅ Found', tickets.length, 'tickets');
+    console.log('');
 
     res.json({
       success: true,
@@ -151,11 +189,14 @@ router.post('/add-message', authenticate, async (req, res) => {
   try {
     const { ticketNumber, message } = req.body;
 
-    console.log('💬 POST /api/tickets/add-message');
+    console.log('');
+    console.log('💬 ADD MESSAGE TO TICKET');
     console.log('   Ticket:', ticketNumber);
     console.log('   User:', req.user.userId);
+    console.log('   Message length:', message?.length || 0);
 
     if (!message || message.trim().length === 0) {
+      console.log('❌ Validation failed: Message is empty');
       return res.status(400).json({
         success: false,
         message: 'Message is required'
@@ -163,6 +204,7 @@ router.post('/add-message', authenticate, async (req, res) => {
     }
 
     if (message.length > 150) {
+      console.log('❌ Validation failed: Message too long');
       return res.status(400).json({
         success: false,
         message: 'Message must not exceed 150 characters'
@@ -204,6 +246,7 @@ router.post('/add-message', authenticate, async (req, res) => {
     await ticket.save();
 
     console.log('✅ Message added successfully');
+    console.log('');
 
     res.json({
       success: true,
@@ -228,13 +271,15 @@ router.post('/request-refund', authenticate, async (req, res) => {
   try {
     const { ticketNumber } = req.body;
 
-    console.log('💰 POST /api/tickets/request-refund');
+    console.log('');
+    console.log('💰 REFUND REQUEST');
     console.log('   Ticket:', ticketNumber);
     console.log('   User:', req.user.userId);
 
     const ticket = await Ticket.findOne({ ticketNumber });
 
     if (!ticket) {
+      console.log('❌ Ticket not found');
       return res.status(404).json({
         success: false,
         message: 'Ticket not found'
@@ -242,6 +287,7 @@ router.post('/request-refund', authenticate, async (req, res) => {
     }
 
     if (ticket.userId !== req.user.userId) {
+      console.log('❌ Unauthorized');
       return res.status(403).json({
         success: false,
         message: 'Unauthorized'
@@ -249,6 +295,7 @@ router.post('/request-refund', authenticate, async (req, res) => {
     }
 
     if (ticket.refundRequested) {
+      console.log('❌ Refund already requested');
       return res.status(400).json({
         success: false,
         message: 'Refund already requested for this ticket'
@@ -259,6 +306,7 @@ router.post('/request-refund', authenticate, async (req, res) => {
     await ticket.save();
 
     console.log('✅ Refund requested successfully');
+    console.log('');
 
     res.json({
       success: true,
