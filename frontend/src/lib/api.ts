@@ -1,29 +1,61 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000',
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 30000, // 30 seconds timeout
 });
 
 // Request interceptor to add token
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+api.interceptors.request.use(
+  (config) => {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('token');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
   }
-  return config;
-});
+);
 
 // Response interceptor for error handling
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      window.location.href = '/';
+    // Handle network errors
+    if (!error.response) {
+      console.error('Network error:', error);
+      return Promise.reject({
+        response: {
+          data: {
+            success: false,
+            message: 'Network error. Please check your connection.',
+          },
+        },
+      });
     }
+
+    // Handle 401 errors (except for login/register routes)
+    if (error.response?.status === 401) {
+      const currentPath = window.location.pathname;
+      
+      // Don't redirect if on login/register pages
+      if (!currentPath.includes('/login') && !currentPath.includes('/register') && currentPath !== '/') {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          localStorage.removeItem('isAdmin');
+          window.location.href = '/';
+        }
+      }
+    }
+
     return Promise.reject(error);
   }
 );
@@ -189,7 +221,7 @@ export const adminAPI = {
     api.post('/api/admin/tickets/close', { ticketNumber }),
   
   markRefundEligible: (ticketNumber: string) =>
-    api.post('/api/admin/tickets/mark-refund-eligible', { ticketNumber }),
+    api.post('/api/admin/tickets/refund-eligible', { ticketNumber }),
   
   getRefunds: () =>
     api.get('/api/admin/refunds'),

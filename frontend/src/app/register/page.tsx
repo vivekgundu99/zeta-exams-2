@@ -45,7 +45,8 @@ export default function RegisterPage() {
         toast.success('OTP sent to your email!');
       }
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to send OTP');
+      const errorMessage = error.response?.data?.message || 'Failed to send OTP';
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -84,6 +85,12 @@ export default function RegisterPage() {
       setVerifying(true);
       const formData = getValues();
 
+      console.log('Registering with:', { 
+        email: formData.email, 
+        phoneNumber: formData.phoneNumber,
+        otp: otpValue 
+      });
+
       const response = await authAPI.register({
         email: formData.email,
         phoneNumber: formData.phoneNumber,
@@ -92,15 +99,25 @@ export default function RegisterPage() {
         otp: otpValue,
       });
 
+      console.log('Registration response:', response.data);
+
       if (response.data.success) {
         storage.set('token', response.data.token);
         storage.set('user', response.data.user);
         
         toast.success('Registration successful!');
-        router.push('/user-details');
+        
+        // Delay navigation to ensure state is saved
+        setTimeout(() => {
+          router.push('/user-details');
+        }, 500);
+      } else {
+        toast.error(response.data.message || 'Registration failed');
       }
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Registration failed');
+      console.error('Registration error:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Registration failed';
+      toast.error(errorMessage);
     } finally {
       setVerifying(false);
     }
@@ -150,7 +167,7 @@ export default function RegisterPage() {
               onClick={verifyAndRegister}
               isLoading={verifying}
             >
-              Verify & Continue
+              {verifying ? 'Verifying...' : 'Verify & Continue'}
             </Button>
 
             <div className="mt-4 text-center">
@@ -265,7 +282,7 @@ export default function RegisterPage() {
             )}
 
             <Button type="submit" fullWidth isLoading={isLoading} size="lg">
-              Create Account
+              {isLoading ? 'Sending OTP...' : 'Create Account'}
             </Button>
           </form>
 

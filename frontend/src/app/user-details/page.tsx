@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { toast } from 'react-hot-toast';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { userAPI } from '@/lib/api';
-import { INDIAN_STATES } from '@/lib/utils';
+import { INDIAN_STATES, storage } from '@/lib/utils';
 
 interface UserDetailsFormData {
   name: string;
@@ -32,6 +32,14 @@ export default function UserDetailsPage() {
 
   const profession = watch('profession');
   const name = watch('name');
+
+  useEffect(() => {
+    // Check if user is logged in
+    const token = storage.get('token');
+    if (!token) {
+      router.push('/');
+    }
+  }, []);
 
   const onSubmit = async (data: UserDetailsFormData) => {
     try {
@@ -78,11 +86,19 @@ export default function UserDetailsPage() {
 
       const response = await userAPI.updateDetails(submitData);
       
-      console.log('Response:', response.data);
+      console.log('User details response:', response.data);
 
       if (response.data.success) {
         toast.success('Profile updated successfully!');
-        // Small delay to show success message
+        
+        // Update local storage with new user data
+        const currentUser = storage.get('user') || {};
+        storage.set('user', {
+          ...currentUser,
+          ...response.data.userData
+        });
+        
+        // Navigate to subscription page after a short delay
         setTimeout(() => {
           router.push('/subscription');
         }, 500);

@@ -98,35 +98,41 @@ router.post('/update-details', authenticate, async (req, res) => {
   try {
     const { name, profession, grade, exam, collegeName, state, lifeAmbition } = req.body;
 
+    console.log('Update details request:', { name, profession, grade, exam, collegeName, state, lifeAmbition });
+
     // Validate required fields
-    if (!name || !profession || !exam) {
+    if (!name || !name.trim()) {
       return res.status(400).json({
         success: false,
-        message: 'Name, profession, and exam are required'
+        message: 'Name is required'
       });
     }
 
-    // Validate profession
-    if (!['student', 'teacher'].includes(profession)) {
+    if (!profession || !['student', 'teacher'].includes(profession)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid profession'
+        message: 'Valid profession is required'
       });
     }
 
-    // Validate exam
-    if (!['jee', 'neet'].includes(exam)) {
+    if (!exam || !['jee', 'neet'].includes(exam)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid exam type'
+        message: 'Valid exam type is required'
       });
     }
 
-    // Validate grade for students
     if (profession === 'student' && !grade) {
       return res.status(400).json({
         success: false,
         message: 'Grade is required for students'
+      });
+    }
+
+    if (!state || !state.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'State is required'
       });
     }
 
@@ -145,11 +151,13 @@ router.post('/update-details', authenticate, async (req, res) => {
     userData.grade = profession === 'teacher' ? 'other' : (grade || 'other');
     userData.exam = exam;
     userData.collegeName = collegeName ? collegeName.trim() : null;
-    userData.state = state || null;
+    userData.state = state.trim();
     userData.lifeAmbition = lifeAmbition ? lifeAmbition.trim() : null;
     userData.userDetails = true;
 
     await userData.save();
+
+    console.log('User details saved:', userData);
 
     // Update subscription exam
     await Subscription.updateOne(

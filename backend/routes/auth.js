@@ -92,9 +92,25 @@ router.post('/send-otp', otpLimiter, async (req, res) => {
 // @route   POST /api/auth/register
 // @desc    Register new user with OTP verification
 // @access  Public
-router.post('/register', validateRegistration, async (req, res) => {
+router.post('/register', async (req, res) => {
   try {
-    const { email, phoneNumber, password, otp } = req.body;
+    const { email, phoneNumber, password, confirmPassword, otp } = req.body;
+
+    // Validate required fields
+    if (!email || !phoneNumber || !password || !confirmPassword || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'All fields are required'
+      });
+    }
+
+    // Validate password match
+    if (password !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Passwords do not match'
+      });
+    }
 
     // Verify OTP
     const otpRecord = await OTP.findOne({ 
@@ -223,19 +239,8 @@ router.post('/login', authLimiter, async (req, res) => {
       const adminPassword = process.env.ADMIN_PASSWORD || 'Zeta@123';
 
       console.log('Admin login attempt - Checking credentials...');
-      console.log('Provided email:', email);
-      console.log('Expected email:', adminEmail);
 
-      if (email !== adminEmail) {
-        console.log('Admin email mismatch');
-        return res.status(401).json({
-          success: false,
-          message: 'Invalid admin credentials'
-        });
-      }
-
-      if (password !== adminPassword) {
-        console.log('Admin password mismatch');
+      if (email !== adminEmail || password !== adminPassword) {
         return res.status(401).json({
           success: false,
           message: 'Invalid admin credentials'
@@ -433,9 +438,16 @@ router.post('/logout-all', async (req, res) => {
 // @route   POST /api/auth/reset-password
 // @desc    Reset password with OTP
 // @access  Public
-router.post('/reset-password', validateOTP, async (req, res) => {
+router.post('/reset-password', async (req, res) => {
   try {
     const { email, otp, newPassword } = req.body;
+
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'All fields are required'
+      });
+    }
 
     // Verify OTP
     const otpRecord = await OTP.findOne({ 
