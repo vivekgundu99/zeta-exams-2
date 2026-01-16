@@ -1,11 +1,15 @@
 import axios from 'axios';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://zeta-exams-backend-2.vercel.app';
+
+console.log('API initialized with URL:', API_URL);
+
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000',
+  baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 30000, // 30 seconds timeout
+  timeout: 30000,
 });
 
 // Request interceptor to add token
@@ -15,22 +19,35 @@ api.interceptors.request.use(
       const token = localStorage.getItem('token');
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
+        console.log('Request with token to:', config.url);
+      } else {
+        console.log('Request without token to:', config.url);
       }
     }
     return config;
   },
   (error) => {
+    console.error('Request interceptor error:', error);
     return Promise.reject(error);
   }
 );
 
 // Response interceptor for error handling
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log('Response received from:', response.config.url, 'Status:', response.status);
+    return response;
+  },
   (error) => {
-    // Handle network errors
+    console.error('API Error:', {
+      url: error.config?.url,
+      method: error.config?.method,
+      status: error.response?.status,
+      message: error.response?.data?.message || error.message
+    });
+
     if (!error.response) {
-      console.error('Network error:', error);
+      console.error('Network error - no response received');
       return Promise.reject({
         response: {
           data: {
@@ -41,12 +58,11 @@ api.interceptors.response.use(
       });
     }
 
-    // Handle 401 errors (except for login/register routes)
     if (error.response?.status === 401) {
       const currentPath = window.location.pathname;
       
-      // Don't redirect if on login/register pages
       if (!currentPath.includes('/login') && !currentPath.includes('/register') && currentPath !== '/') {
+        console.log('401 error - redirecting to login');
         if (typeof window !== 'undefined') {
           localStorage.removeItem('token');
           localStorage.removeItem('user');
@@ -88,6 +104,7 @@ export const userAPI = {
   getProfile: () =>
     api.get('/api/user/profile'),
   
+  // FIX: This should be POST as defined in backend
   updateDetails: (data: any) =>
     api.post('/api/user/update-details', data),
   

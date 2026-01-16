@@ -14,8 +14,11 @@ const { decryptPhone } = require('../utils/encryption');
 // @access  Private
 router.get('/profile', authenticate, async (req, res) => {
   try {
+    console.log('📊 GET /api/user/profile - User:', req.user.userId);
+
     // Handle admin profile request
     if (req.user.isAdmin) {
+      console.log('👑 Admin profile request');
       return res.json({
         success: true,
         user: {
@@ -37,6 +40,7 @@ router.get('/profile', authenticate, async (req, res) => {
     const limits = await Limits.findOne({ userId: req.user.userId });
 
     if (!user || !userData) {
+      console.log('❌ User or UserData not found');
       return res.status(404).json({
         success: false,
         message: 'User not found'
@@ -48,11 +52,13 @@ router.get('/profile', authenticate, async (req, res) => {
     try {
       decryptedPhone = decryptPhone(user.phoneNumber);
     } catch (error) {
-      console.error('Phone decryption error:', error);
+      console.error('⚠️ Phone decryption error:', error);
     }
 
     // Check limits
     const limitStatus = limits ? limits.checkLimits() : null;
+
+    console.log('✅ Profile fetched successfully');
 
     res.status(200).json({
       success: true,
@@ -82,7 +88,7 @@ router.get('/profile', authenticate, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Get profile error:', error);
+    console.error('💥 Get profile error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
@@ -98,10 +104,13 @@ router.post('/update-details', authenticate, async (req, res) => {
   try {
     const { name, profession, grade, exam, collegeName, state, lifeAmbition } = req.body;
 
-    console.log('Update details request:', { name, profession, grade, exam, collegeName, state, lifeAmbition });
+    console.log('📝 POST /api/user/update-details');
+    console.log('User:', req.user.userId);
+    console.log('Data received:', { name, profession, grade, exam, collegeName, state, lifeAmbition });
 
     // Validate required fields
     if (!name || !name.trim()) {
+      console.log('❌ Validation failed: Name is required');
       return res.status(400).json({
         success: false,
         message: 'Name is required'
@@ -109,20 +118,23 @@ router.post('/update-details', authenticate, async (req, res) => {
     }
 
     if (!profession || !['student', 'teacher'].includes(profession)) {
+      console.log('❌ Validation failed: Invalid profession');
       return res.status(400).json({
         success: false,
-        message: 'Valid profession is required'
+        message: 'Valid profession is required (student or teacher)'
       });
     }
 
     if (!exam || !['jee', 'neet'].includes(exam)) {
+      console.log('❌ Validation failed: Invalid exam');
       return res.status(400).json({
         success: false,
-        message: 'Valid exam type is required'
+        message: 'Valid exam type is required (jee or neet)'
       });
     }
 
     if (profession === 'student' && !grade) {
+      console.log('❌ Validation failed: Grade required for students');
       return res.status(400).json({
         success: false,
         message: 'Grade is required for students'
@@ -130,6 +142,7 @@ router.post('/update-details', authenticate, async (req, res) => {
     }
 
     if (!state || !state.trim()) {
+      console.log('❌ Validation failed: State is required');
       return res.status(400).json({
         success: false,
         message: 'State is required'
@@ -139,11 +152,14 @@ router.post('/update-details', authenticate, async (req, res) => {
     const userData = await UserData.findOne({ userId: req.user.userId });
 
     if (!userData) {
+      console.log('❌ UserData not found for user:', req.user.userId);
       return res.status(404).json({
         success: false,
         message: 'User data not found'
       });
     }
+
+    console.log('📝 Updating user details...');
 
     // Update user details
     userData.name = name.trim();
@@ -157,13 +173,15 @@ router.post('/update-details', authenticate, async (req, res) => {
 
     await userData.save();
 
-    console.log('User details saved:', userData);
+    console.log('✅ User details saved successfully');
 
     // Update subscription exam
     await Subscription.updateOne(
       { userId: req.user.userId },
       { exam: exam }
     );
+
+    console.log('✅ Subscription exam updated');
 
     res.status(200).json({
       success: true,
@@ -181,7 +199,7 @@ router.post('/update-details', authenticate, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Update details error:', error);
+    console.error('💥 Update details error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
@@ -196,6 +214,8 @@ router.post('/update-details', authenticate, async (req, res) => {
 router.put('/edit-details', authenticate, async (req, res) => {
   try {
     const { name, profession, grade, exam, collegeName, state, lifeAmbition } = req.body;
+
+    console.log('✏️ PUT /api/user/edit-details - User:', req.user.userId);
 
     const userData = await UserData.findOne({ userId: req.user.userId });
 
@@ -225,6 +245,8 @@ router.put('/edit-details', authenticate, async (req, res) => {
       );
     }
 
+    console.log('✅ Details updated successfully');
+
     res.status(200).json({
       success: true,
       message: 'Details updated successfully',
@@ -240,7 +262,7 @@ router.put('/edit-details', authenticate, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Edit details error:', error);
+    console.error('💥 Edit details error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
@@ -255,6 +277,8 @@ router.put('/edit-details', authenticate, async (req, res) => {
 router.post('/change-password', authenticate, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
+
+    console.log('🔐 POST /api/user/change-password - User:', req.user.userId);
 
     if (!currentPassword || !newPassword) {
       return res.status(400).json({
@@ -283,6 +307,7 @@ router.post('/change-password', authenticate, async (req, res) => {
     const isPasswordValid = await bcrypt.compare(currentPassword, userData.password);
 
     if (!isPasswordValid) {
+      console.log('❌ Current password incorrect');
       return res.status(401).json({
         success: false,
         message: 'Current password is incorrect'
@@ -300,13 +325,15 @@ router.post('/change-password', authenticate, async (req, res) => {
       { loginStatus: false }
     );
 
+    console.log('✅ Password changed successfully');
+
     res.status(200).json({
       success: true,
       message: 'Password changed successfully. Please login again.'
     });
 
   } catch (error) {
-    console.error('Change password error:', error);
+    console.error('💥 Change password error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
@@ -320,6 +347,8 @@ router.post('/change-password', authenticate, async (req, res) => {
 // @access  Private
 router.get('/limits', authenticate, async (req, res) => {
   try {
+    console.log('📊 GET /api/user/limits - User:', req.user.userId);
+
     const limits = await Limits.findOne({ userId: req.user.userId });
 
     if (!limits) {
@@ -338,7 +367,7 @@ router.get('/limits', authenticate, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Get limits error:', error);
+    console.error('💥 Get limits error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
