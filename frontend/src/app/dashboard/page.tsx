@@ -1,9 +1,11 @@
+// frontend/src/app/dashboard/page.tsx - FIXED VERSION
 'use client';
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Card, { CardBody } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
+import Loader from '@/components/ui/Loader';
 import { userAPI } from '@/lib/api';
 import { getGreeting, formatDate } from '@/lib/utils';
 
@@ -12,6 +14,8 @@ export default function DashboardPage() {
   const [user, setUser] = useState<any>(null);
   const [limits, setLimits] = useState<any>(null);
   const [subscription, setSubscription] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -19,14 +23,33 @@ export default function DashboardPage() {
 
   const loadDashboardData = async () => {
     try {
+      setLoading(true);
+      setError(null);
+
+      console.log('📊 Loading dashboard data...');
+
       const response = await userAPI.getProfile();
+      
+      console.log('✅ Profile response:', response.data);
+
       if (response.data.success) {
         setUser(response.data.user);
         setSubscription(response.data.subscription);
         setLimits(response.data.limits);
+        
+        console.log('✅ Dashboard data loaded:', {
+          user: response.data.user?.name,
+          subscription: response.data.subscription?.subscription,
+          limits: response.data.limits
+        });
+      } else {
+        setError('Failed to load dashboard data');
       }
-    } catch (error) {
-      console.error('Failed to load dashboard data');
+    } catch (error: any) {
+      console.error('💥 Dashboard load error:', error);
+      setError(error.response?.data?.message || 'Failed to load dashboard');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -68,6 +91,29 @@ export default function DashboardPage() {
     return 'bg-green-500';
   };
 
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-[60vh]">
+        <Loader size="lg" text="Loading dashboard..." />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="border-2 border-red-200">
+        <CardBody className="p-8 text-center">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-3xl">⚠️</span>
+          </div>
+          <h3 className="text-xl font-bold text-gray-900 mb-2">Error Loading Dashboard</h3>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <Button onClick={loadDashboardData}>Retry</Button>
+        </CardBody>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Welcome Banner */}
@@ -76,10 +122,10 @@ export default function DashboardPage() {
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div>
               <h1 className="text-3xl font-bold mb-2">
-                {getGreeting()}, {user?.name}! 👋
+                {getGreeting()}, {user?.name || 'User'}! 👋
               </h1>
               <p className="text-purple-100">
-                Preparing for {subscription?.exam?.toUpperCase()} • {formatDate(new Date())}
+                Preparing for {subscription?.exam?.toUpperCase() || 'Exam'} • {formatDate(new Date())}
               </p>
             </div>
             {subscription && (
@@ -101,15 +147,15 @@ export default function DashboardPage() {
       </Card>
 
       {/* Stats Grid */}
-      {limits && (
+      {limits ? (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card>
             <CardBody>
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <p className="text-sm text-gray-600 mb-1">Questions</p>
+                  <p className="text-sm text-gray-600 mb-1">Questions Today</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {limits.questions.used}/{limits.questions.limit}
+                    {limits.questions?.used || 0}/{limits.questions?.limit || 0}
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -119,10 +165,10 @@ export default function DashboardPage() {
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
                   className={`h-2 rounded-full transition-all ${getProgressColor(
-                    (limits.questions.used / limits.questions.limit) * 100
+                    ((limits.questions?.used || 0) / (limits.questions?.limit || 1)) * 100
                   )}`}
                   style={{
-                    width: `${Math.min((limits.questions.used / limits.questions.limit) * 100, 100)}%`,
+                    width: `${Math.min(((limits.questions?.used || 0) / (limits.questions?.limit || 1)) * 100, 100)}%`,
                   }}
                 ></div>
               </div>
@@ -134,9 +180,9 @@ export default function DashboardPage() {
             <CardBody>
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <p className="text-sm text-gray-600 mb-1">Chapter Tests</p>
+                  <p className="text-sm text-gray-600 mb-1">Chapter Tests Today</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {limits.chapterTests.used}/{limits.chapterTests.limit}
+                    {limits.chapterTests?.used || 0}/{limits.chapterTests?.limit || 0}
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
@@ -146,10 +192,10 @@ export default function DashboardPage() {
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
                   className={`h-2 rounded-full transition-all ${getProgressColor(
-                    (limits.chapterTests.used / limits.chapterTests.limit) * 100
+                    ((limits.chapterTests?.used || 0) / (limits.chapterTests?.limit || 1)) * 100
                   )}`}
                   style={{
-                    width: `${Math.min((limits.chapterTests.used / limits.chapterTests.limit) * 100, 100)}%`,
+                    width: `${Math.min(((limits.chapterTests?.used || 0) / (limits.chapterTests?.limit || 1)) * 100, 100)}%`,
                   }}
                 ></div>
               </div>
@@ -161,9 +207,9 @@ export default function DashboardPage() {
             <CardBody>
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <p className="text-sm text-gray-600 mb-1">Mock Tests</p>
+                  <p className="text-sm text-gray-600 mb-1">Mock Tests Today</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {limits.mockTests.used}/{limits.mockTests.limit}
+                    {limits.mockTests?.used || 0}/{limits.mockTests?.limit || 0}
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
@@ -173,10 +219,10 @@ export default function DashboardPage() {
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
                   className={`h-2 rounded-full transition-all ${getProgressColor(
-                    (limits.mockTests.used / limits.mockTests.limit) * 100
+                    ((limits.mockTests?.used || 0) / (limits.mockTests?.limit || 1)) * 100
                   )}`}
                   style={{
-                    width: `${Math.min((limits.mockTests.used / limits.mockTests.limit) * 100, 100)}%`,
+                    width: `${Math.min(((limits.mockTests?.used || 0) / (limits.mockTests?.limit || 1)) * 100, 100)}%`,
                   }}
                 ></div>
               </div>
@@ -184,6 +230,12 @@ export default function DashboardPage() {
             </CardBody>
           </Card>
         </div>
+      ) : (
+        <Card>
+          <CardBody className="p-8 text-center">
+            <p className="text-gray-600">Loading usage limits...</p>
+          </CardBody>
+        </Card>
       )}
 
       {/* Quick Actions */}

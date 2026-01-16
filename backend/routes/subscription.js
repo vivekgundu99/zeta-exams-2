@@ -1,6 +1,8 @@
+// backend/routes/subscription.js - FIXED VERSION
 const express = require('express');
 const router = express.Router();
 const Subscription = require('../models/Subscription');
+const Limits = require('../models/Limits');
 const { authenticate } = require('../middleware/auth');
 const { getSubscriptionPrice } = require('../utils/helpers');
 
@@ -47,34 +49,53 @@ router.get('/plans', (req, res) => {
   });
 });
 
-// Get subscription status
+// FIX: Get subscription status with proper error handling
 router.get('/status', authenticate, async (req, res) => {
   try {
+    console.log('📊 GET /api/subscription/status - User:', req.user.userId);
+    
     const subscription = await Subscription.findOne({ userId: req.user.userId });
     
     if (!subscription) {
+      console.log('❌ Subscription not found for user:', req.user.userId);
       return res.status(404).json({
         success: false,
         message: 'Subscription not found'
       });
     }
 
+    // Check if subscription is expired
     const isExpired = subscription.isExpired();
     
+    // Auto-update if expired
+    if (isExpired && subscription.subscription !== 'free') {
+      subscription.subscriptionStatus = 'inactive';
+      subscription.subscription = 'free';
+      await subscription.save();
+    }
+
+    console.log('✅ Subscription status:', {
+      subscription: subscription.subscription,
+      status: subscription.subscriptionStatus,
+      exam: subscription.exam
+    });
+
     res.json({
       success: true,
       subscription: {
-        type: subscription.subscription,
-        status: subscription.subscriptionStatus,
+        userId: subscription.userId,
         exam: subscription.exam,
-        startTime: subscription.subscriptionStartTime,
-        endTime: subscription.subscriptionEndTime,
-        isExpired,
-        subscriptionType: subscription.subscriptionType
+        subscription: subscription.subscription,
+        subscriptionType: subscription.subscriptionType,
+        subscriptionStartTime: subscription.subscriptionStartTime,
+        subscriptionEndTime: subscription.subscriptionEndTime,
+        subscriptionStatus: subscription.subscriptionStatus,
+        isExpired
       }
     });
 
   } catch (error) {
+    console.error('💥 Subscription status error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',

@@ -1,3 +1,4 @@
+// backend/routes/questions.js - FIXED VERSION
 const express = require('express');
 const router = express.Router();
 const Question = require('../models/Question');
@@ -109,15 +110,38 @@ router.get('/list', authenticate, async (req, res) => {
   }
 });
 
-// Get single question
+// FIX: Get single question with proper error handling and limit checking
 router.get('/:questionId', authenticate, async (req, res) => {
   try {
     const { questionId } = req.params;
 
-    // Check and reset limits if needed
-    const limits = await Limits.findOne({ userId: req.user.userId });
+    console.log('📝 GET /api/questions/:questionId - QuestionID:', questionId);
+    console.log('   User:', req.user.userId);
+
+    // FIX: Get or create limits
+    let limits = await Limits.findOne({ userId: req.user.userId });
     
-    if (limits && needsLimitReset(limits.limitResetTime)) {
+    if (!limits) {
+      console.log('⚠️ Creating limits for user');
+      const Subscription = require('../models/Subscription');
+      const subscription = await Subscription.findOne({ userId: req.user.userId });
+      
+      limits = await Limits.create({
+        userId: req.user.userId,
+        subscription: subscription?.subscription || 'free',
+        questionCount: 0,
+        chapterTestCount: 0,
+        mockTestCount: 0,
+        questionCountLimitReached: false,
+        chapterTestCountLimitReached: false,
+        mockTestCountLimitReached: false,
+        limitResetTime: getNextResetTime()
+      });
+    }
+    
+    // Check and reset limits if needed
+    if (needsLimitReset(limits.limitResetTime)) {
+      console.log('🔄 Resetting limits for user');
       limits.questionCount = 0;
       limits.chapterTestCount = 0;
       limits.mockTestCount = 0;
@@ -131,6 +155,7 @@ router.get('/:questionId', authenticate, async (req, res) => {
     // Check question limit
     const limitStatus = limits.checkLimits();
     if (limitStatus.questions.reached) {
+      console.log('❌ Question limit reached for user');
       return res.status(403).json({
         success: false,
         message: 'Daily question limit reached',
@@ -138,18 +163,24 @@ router.get('/:questionId', authenticate, async (req, res) => {
       });
     }
 
-    const question = await Question.findOne({ questionId });
+    // FIX: Find question by questionId (not _id)
+    const question = await Question.findOne({ questionId: questionId });
 
     if (!question) {
+      console.log('❌ Question not found:', questionId);
       return res.status(404).json({
         success: false,
         message: 'Question not found'
       });
     }
 
+    console.log('✅ Question found:', question.questionId);
+
     // Increment question count
     limits.questionCount += 1;
     await limits.save();
+
+    console.log('✅ Question count incremented:', limits.questionCount);
 
     res.json({
       success: true,
@@ -157,6 +188,7 @@ router.get('/:questionId', authenticate, async (req, res) => {
     });
 
   } catch (error) {
+    console.error('💥 Get question error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',

@@ -1,3 +1,4 @@
+// backend/routes/user.js - FIXED VERSION WITH PROPER LIMITS
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
@@ -8,9 +9,10 @@ const Limits = require('../models/Limits');
 const { authenticate } = require('../middleware/auth');
 const { validateUserDetails } = require('../middleware/validator');
 const { decryptPhone } = require('../utils/encryption');
+const { needsLimitReset, getNextResetTime } = require('../utils/helpers');
 
 // @route   GET /api/user/profile
-// @desc    Get user profile
+// @desc    Get user profile with subscription and limits
 // @access  Private
 router.get('/profile', authenticate, async (req, res) => {
   try {
@@ -36,8 +38,8 @@ router.get('/profile', authenticate, async (req, res) => {
 
     const user = await User.findOne({ userId: req.user.userId });
     const userData = await UserData.findOne({ userId: req.user.userId });
-    const subscription = await Subscription.findOne({ userId: req.user.userId });
-    const limits = await Limits.findOne({ userId: req.user.userId });
+    let subscription = await Subscription.findOne({ userId: req.user.userId });
+    let limits = await Limits.findOne({ userId: req.user.userId });
 
     if (!user || !userData) {
       console.log('❌ User or UserData not found');
@@ -45,6 +47,56 @@ router.get('/profile', authenticate, async (req, res) => {
         success: false,
         message: 'User not found'
       });
+    }
+
+    // FIX: Create subscription if doesn't exist
+    if (!subscription) {
+      console.log('⚠️ Creating missing subscription for user');
+      subscription = await Subscription.create({
+        userId: req.user.userId,
+        exam: userData.exam || null,
+        subscription: 'free',
+        subscriptionType: 'original',
+        subscriptionStartTime: new Date(),
+        subscriptionEndTime: null,
+        subscriptionStatus: 'active'
+      });
+    }
+
+    // FIX: Create limits if doesn't exist
+    if (!limits) {
+      console.log('⚠️ Creating missing limits for user');
+      limits = await Limits.create({
+        userId: req.user.userId,
+        subscription: subscription.subscription,
+        questionCount: 0,
+        chapterTestCount: 0,
+        mockTestCount: 0,
+        questionCountLimitReached: false,
+        chapterTestCountLimitReached: false,
+        mockTestCountLimitReached: false,
+        limitResetTime: getNextResetTime()
+      });
+    }
+
+    // FIX: Check and reset limits if needed
+    if (needsLimitReset(limits.limitResetTime)) {
+      console.log('🔄 Resetting limits - time passed');
+      limits.questionCount = 0;
+      limits.chapterTestCount = 0;
+      limits.mockTestCount = 0;
+      limits.questionCountLimitReached = false;
+      limits.chapterTestCountLimitReached = false;
+      limits.mockTestCountLimitReached = false;
+      limits.limitResetTime = getNextResetTime();
+      await limits.save();
+    }
+
+    // FIX: Sync limits subscription with actual subscription
+    if (limits.subscription !== subscription.subscription) {
+      console.log('🔄 Syncing limits subscription:', subscription.subscription);
+      limits.subscription = subscription.subscription;
+      await limits.save();
     }
 
     // Decrypt phone number
@@ -55,10 +107,10 @@ router.get('/profile', authenticate, async (req, res) => {
       console.error('⚠️ Phone decryption error:', error);
     }
 
-    // Check limits
-    const limitStatus = limits ? limits.checkLimits() : null;
+    // Check limits status
+    const limitStatus = limits.checkLimits();
 
-    console.log('✅ Profile fetched successfully');
+    console.log('✅ Profile fetched successfully with limits:', limitStatus);
 
     res.status(200).json({
       success: true,
@@ -76,14 +128,15 @@ router.get('/profile', authenticate, async (req, res) => {
         userDetails: userData.userDetails,
         lastLoginTime: user.lastLoginTime
       },
-      subscription: subscription ? {
+      subscription: {
+        userId: subscription.userId,
+        exam: subscription.exam,
         subscription: subscription.subscription,
         subscriptionType: subscription.subscriptionType,
         subscriptionStatus: subscription.subscriptionStatus,
         subscriptionStartTime: subscription.subscriptionStartTime,
-        subscriptionEndTime: subscription.subscriptionEndTime,
-        exam: subscription.exam
-      } : null,
+        subscriptionEndTime: subscription.subscriptionEndTime
+      },
       limits: limitStatus
     });
 
@@ -349,13 +402,37 @@ router.get('/limits', authenticate, async (req, res) => {
   try {
     console.log('📊 GET /api/user/limits - User:', req.user.userId);
 
-    const limits = await Limits.findOne({ userId: req.user.userId });
+    let limits = await Limits.findOne({ userId: req.user.userId });
 
+    // FIX: Create limits if doesn't exist
     if (!limits) {
-      return res.status(404).json({
-        success: false,
-        message: 'Limits not found'
+      console.log('⚠️ Creating missing limits for user');
+      const subscription = await Subscription.findOne({ userId: req.user.userId });
+      
+      limits = await Limits.create({
+        userId: req.user.userId,
+        subscription: subscription?.subscription || 'free',
+        questionCount: 0,
+        chapterTestCount: 0,
+        mockTestCount: 0,
+        questionCountLimitReached: false,
+        chapterTestCountLimitReached: false,
+        mockTestCountLimitReached: false,
+        limitResetTime: getNextResetTime()
       });
+    }
+
+    // Check and reset if needed
+    if (needsLimitReset(limits.limitResetTime)) {
+      console.log('🔄 Resetting limits');
+      limits.questionCount = 0;
+      limits.chapterTestCount = 0;
+      limits.mockTestCount = 0;
+      limits.questionCountLimitReached = false;
+      limits.chapterTestCountLimitReached = false;
+      limits.mockTestCountLimitReached = false;
+      limits.limitResetTime = getNextResetTime();
+      await limits.save();
     }
 
     const limitStatus = limits.checkLimits();
