@@ -9,14 +9,16 @@ interface LatexRendererProps {
   className?: string;
 }
 
-export default function LatexRenderer({ text, className = '' }: LatexRendererProps) {
+export default function LatexRenderer({
+  text,
+  className = '',
+}: LatexRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!containerRef.current || !text) return;
 
     try {
-      // Process the text to find and render LaTeX
       const processedHTML = processLatexText(text);
       containerRef.current.innerHTML = processedHTML;
     } catch (error) {
@@ -31,53 +33,50 @@ export default function LatexRenderer({ text, className = '' }: LatexRendererPro
 function processLatexText(text: string): string {
   if (!text) return '';
 
-  // Handle different LaTeX formats:
-  // 1. latex:formula (inline)
-  // 2. $$formula$$ (display mode)
-  // 3. $formula$ (inline mode)
-  // 4. \n for newlines
-  
   let processed = text;
 
-  // Replace \n with <br />
+  // ✅ Handle newlines first
   processed = processed.replace(/\\n/g, '<br />');
   processed = processed.replace(/\n/g, '<br />');
 
-  // Handle display mode $$...$$
-  processed = processed.replace(/\$\$([^\$]+)\$\$/g, (match, formula) => {
+  // ✅ FIXED: $$ display math (NO 's' FLAG → ES2017 SAFE)
+  processed = processed.replace(/\$\$([\s\S]+?)\$\$/g, (match, formula) => {
     try {
-      return katex.renderToString(formula.trim(), { 
+      return katex.renderToString(formula.trim(), {
         displayMode: true,
         throwOnError: false,
-        trust: true
+        trust: true,
+        strict: false,
       });
-    } catch (e) {
+    } catch {
       return match;
     }
   });
 
-  // Handle inline mode $...$
-  processed = processed.replace(/\$([^\$]+)\$/g, (match, formula) => {
+  // ✅ Inline math $...$
+  processed = processed.replace(/\$(.+?)\$/g, (match, formula) => {
     try {
-      return katex.renderToString(formula.trim(), { 
+      return katex.renderToString(formula.trim(), {
         displayMode: false,
         throwOnError: false,
-        trust: true
+        trust: true,
+        strict: false,
       });
-    } catch (e) {
+    } catch {
       return match;
     }
   });
 
-  // Handle latex:formula format
-  processed = processed.replace(/latex:([^\s,;.!?]+)/g, (match, formula) => {
+  // ✅ latex:formula format
+  processed = processed.replace(/latex:([^\s,;.!?<>]+)/g, (match, formula) => {
     try {
-      return katex.renderToString(formula.trim(), { 
+      return katex.renderToString(formula.trim(), {
         displayMode: false,
         throwOnError: false,
-        trust: true
+        trust: true,
+        strict: false,
       });
-    } catch (e) {
+    } catch {
       return match;
     }
   });
@@ -85,8 +84,13 @@ function processLatexText(text: string): string {
   return processed;
 }
 
-// Helper component for rendering options with LaTeX
-export function LatexOption({ text, label }: { text: string; label?: string }) {
+export function LatexOption({
+  text,
+  label,
+}: {
+  text: string;
+  label?: string;
+}) {
   return (
     <div className="flex items-start gap-2">
       {label && <span className="font-semibold">{label}:</span>}

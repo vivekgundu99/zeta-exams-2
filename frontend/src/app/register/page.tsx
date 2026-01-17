@@ -59,7 +59,6 @@ export default function RegisterPage() {
     newOtp[index] = value;
     setOtp(newOtp);
 
-    // Auto focus next input
     if (value && index < 5) {
       const nextInput = document.getElementById(`otp-${index + 1}`);
       nextInput?.focus();
@@ -85,11 +84,7 @@ export default function RegisterPage() {
       setVerifying(true);
       const formData = getValues();
 
-      console.log('Registering with:', { 
-        email: formData.email, 
-        phoneNumber: formData.phoneNumber,
-        otp: otpValue 
-      });
+      console.log('🔵 Starting registration with OTP...');
 
       const response = await authAPI.register({
         email: formData.email,
@@ -99,25 +94,58 @@ export default function RegisterPage() {
         otp: otpValue,
       });
 
-      console.log('Registration response:', response.data);
+      console.log('✅ Registration API response:', response.data);
 
-      if (response.data.success) {
-        storage.set('token', response.data.token);
-        storage.set('user', response.data.user);
+      // FIX: Check response structure properly
+      if (response.data && response.data.success) {
+        // Store auth data
+        if (response.data.token) {
+          storage.set('token', response.data.token);
+          console.log('✅ Token stored');
+        }
         
-        toast.success('Registration successful!');
+        if (response.data.user) {
+          storage.set('user', response.data.user);
+          console.log('✅ User data stored');
+        }
         
-        // Delay navigation to ensure state is saved
+        toast.success('✅ Registration successful!');
+        
+        // Delay navigation slightly
+        setTimeout(() => {
+          console.log('🔀 Navigating to user-details...');
+          router.push('/user-details');
+        }, 500);
+      } else {
+        // Handle unsuccessful response
+        const errorMsg = response.data?.message || 'Registration failed';
+        console.error('❌ Registration failed:', errorMsg);
+        toast.error(errorMsg);
+      }
+    } catch (error: any) {
+      console.error('💥 Registration error:', error);
+      
+      // FIX: Better error handling
+      if (error.response?.data?.success === true) {
+        // Sometimes the response is actually successful but axios treats it as error
+        console.log('⚠️ False error - registration was actually successful');
+        
+        if (error.response.data.token) {
+          storage.set('token', error.response.data.token);
+        }
+        if (error.response.data.user) {
+          storage.set('user', error.response.data.user);
+        }
+        
+        toast.success('✅ Registration successful!');
         setTimeout(() => {
           router.push('/user-details');
         }, 500);
       } else {
-        toast.error(response.data.message || 'Registration failed');
+        // Actual error
+        const errorMessage = error.response?.data?.message || error.message || 'Registration failed';
+        toast.error(errorMessage);
       }
-    } catch (error: any) {
-      console.error('Registration error:', error);
-      const errorMessage = error.response?.data?.message || error.message || 'Registration failed';
-      toast.error(errorMessage);
     } finally {
       setVerifying(false);
     }
@@ -264,7 +292,7 @@ export default function RegisterPage() {
                 {...register('termsAccepted', {
                   required: 'You must accept the terms',
                 })}
-                className="mt-1 w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500"
+                className="mt-1 w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500 focus:ring-2"
               />
               <label htmlFor="terms" className="ml-2 text-sm text-gray-600">
                 I agree to the{' '}

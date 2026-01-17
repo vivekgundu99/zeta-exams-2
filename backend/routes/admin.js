@@ -975,4 +975,28 @@ router.post('/refunds/process', async (req, res) => {
   }
 });
 
+
+// @route   GET /api/admin/formulas/list
+// @desc    Get all formulas
+// @access  Admin
+router.get('/formulas/list', authenticate, isAdmin, async (req, res) => {
+  try {
+    const formulas = await Formula.find().sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      count: formulas.length,
+      formulas
+    });
+  } catch (error) {
+    console.error('Get formulas error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+});
+
+
 module.exports = router;

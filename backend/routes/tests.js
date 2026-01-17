@@ -86,6 +86,7 @@ router.post('/generate-chapter-test', authenticate, async (req, res) => {
 // @route   POST /api/tests/submit-chapter-test
 // @desc    Submit chapter test and get results
 // @access  Private
+// Replace the submit-chapter-test route with this:
 router.post('/submit-chapter-test', authenticate, async (req, res) => {
   try {
     const { answers } = req.body;
@@ -138,6 +139,9 @@ router.post('/submit-chapter-test', authenticate, async (req, res) => {
             question.chapter,
             isCorrect
           );
+          
+          // FIX: Increment chapter test count
+          analytics.overallStats.totalChapterTests += 1;
           
           await analytics.save();
         }

@@ -6,10 +6,11 @@ import Card, { CardBody } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Dropdown from '@/components/ui/Dropdown';
-import { adminAPI } from '@/lib/api';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://zeta-exams-backend-2.vercel.app';
 
 export default function AdminQuestionsPage() {
-  const [activeTab, setActiveTab] = useState('upload'); // 'upload' or 'search'
+  const [activeTab, setActiveTab] = useState('upload');
   const [examType, setExamType] = useState('jee');
   const [csvText, setCsvText] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -29,17 +30,25 @@ export default function AdminQuestionsPage() {
 
     try {
       setUploading(true);
-      const response = await adminAPI.bulkUploadQuestions({
-        csvText,
-        examType,
+      const response = await fetch(`${API_URL}/api/admin/questions/bulk-upload`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({ csvText, examType }),
       });
 
-      if (response.data.success) {
-        toast.success(`${response.data.uploaded} questions uploaded!`);
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success(`${data.uploaded} questions uploaded!`);
         setCsvText('');
+      } else {
+        toast.error(data.message || 'Upload failed');
       }
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Upload failed');
+      toast.error('Upload failed');
     } finally {
       setUploading(false);
     }
@@ -53,16 +62,22 @@ export default function AdminQuestionsPage() {
 
     try {
       setSearching(true);
+      console.log('🔍 Searching for:', searchQuery);
+      
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/admin/questions/search?query=${searchQuery}`,
+        `${API_URL}/api/admin/questions/search?query=${encodeURIComponent(searchQuery.trim())}`,
         {
+          method: 'GET',
           headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json',
           },
         }
       );
 
       const data = await response.json();
+      console.log('📥 Search response:', data);
+      
       if (data.success) {
         setSearchResults(data.questions || []);
         if (data.questions.length === 0) {
@@ -70,8 +85,11 @@ export default function AdminQuestionsPage() {
         } else {
           toast.success(`Found ${data.questions.length} question(s)`);
         }
+      } else {
+        toast.error(data.message || 'Search failed');
       }
     } catch (error: any) {
+      console.error('Search error:', error);
       toast.error('Search failed');
     } finally {
       setSearching(false);
@@ -90,23 +108,20 @@ export default function AdminQuestionsPage() {
 
   const saveEdit = async () => {
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/admin/questions/update`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
-          },
-          body: JSON.stringify(editForm),
-        }
-      );
+      const response = await fetch(`${API_URL}/api/admin/questions/update`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify(editForm),
+      });
 
       const data = await response.json();
       if (data.success) {
         toast.success('Question updated successfully!');
         setEditingQuestion(null);
-        searchQuestions(); // Refresh search results
+        searchQuestions();
       } else {
         toast.error(data.message || 'Update failed');
       }
@@ -121,20 +136,17 @@ export default function AdminQuestionsPage() {
     }
 
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/admin/questions/${questionId}`,
-        {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
-          },
-        }
-      );
+      const response = await fetch(`${API_URL}/api/admin/questions/${questionId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
 
       const data = await response.json();
       if (data.success) {
         toast.success('Question deleted successfully!');
-        searchQuestions(); // Refresh search results
+        searchQuestions();
       } else {
         toast.error(data.message || 'Delete failed');
       }
@@ -224,7 +236,7 @@ export default function AdminQuestionsPage() {
             
             <div className="flex gap-3 mb-6">
               <Input
-                placeholder="Search by Question ID or Serial Number..."
+                placeholder="Enter Question ID (e.g., 0000001) or Serial Number"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && searchQuestions()}

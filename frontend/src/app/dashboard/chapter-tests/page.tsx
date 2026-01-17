@@ -8,7 +8,7 @@ import Button from '@/components/ui/Button';
 import Dropdown from '@/components/ui/Dropdown';
 import Modal from '@/components/ui/Modal';
 import { questionsAPI, userAPI } from '@/lib/api';
-import { parseLatex } from '@/lib/utils';
+import LatexRenderer from '@/components/ui/LatexRenderer';
 
 export default function ChapterTestsPage() {
   const router = useRouter();
@@ -22,6 +22,7 @@ export default function ChapterTestsPage() {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<any[]>([]);
   const [showResults, setShowResults] = useState(false);
+  const [results, setResults] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -81,24 +82,32 @@ export default function ChapterTestsPage() {
 
     try {
       setLoading(true);
-      // Generate test with random 10 questions
-      const response = await questionsAPI.getQuestions({
-        examType,
-        subject: selectedSubject,
-        chapter: selectedChapter,
-      });
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/tests/generate-chapter-test`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${localStorage.getItem('token')}`,
+          },
+          body: JSON.stringify({
+            examType,
+            subject: selectedSubject,
+            chapter: selectedChapter,
+          }),
+        }
+      );
 
-      if (response.data.success) {
-        const allQuestions = response.data.questions;
-        // Shuffle and pick 10
-        const shuffled = allQuestions.sort(() => 0.5 - Math.random());
-        const testQuestions = shuffled.slice(0, 10);
+      const data = await response.json();
 
-        setTest({ questions: testQuestions });
+      if (data.success) {
+        setTest(data.test);
         setCurrentQuestion(0);
-        setAnswers(new Array(testQuestions.length).fill(null));
+        setAnswers(new Array(data.test.questions.length).fill(null));
         setShowResults(false);
         toast.success('Test generated successfully!');
+      } else {
+        toast.error(data.message || 'Failed to generate test');
       }
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to generate test');
@@ -107,7 +116,7 @@ export default function ChapterTestsPage() {
     }
   };
 
-  const submitTest = () => {
+  const submitTest = async () => {
     const unanswered = answers.filter(a => !a).length;
     if (unanswered > 0) {
       const confirm = window.confirm(
@@ -116,31 +125,49 @@ export default function ChapterTestsPage() {
       if (!confirm) return;
     }
 
-    let correct = 0;
-    const results = test.questions.map((q: any, i: number) => {
-      const isCorrect = answers[i] === q.answer;
-      if (isCorrect) correct++;
-      return {
-        question: q,
-        userAnswer: answers[i],
-        correctAnswer: q.answer,
-        isCorrect,
-      };
-    });
+    try {
+      setLoading(true);
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/tests/submit-chapter-test`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${localStorage.getItem('token')}`,
+          },
+          body: JSON.stringify({
+            answers: test.questions.map((q: any, i: number) => ({
+              questionId: q.questionId,
+              userAnswer: answers[i] || '',
+            })),
+          }),
+        }
+      );
 
-    setTest({ ...test, results, score: correct });
-    setShowResults(true);
-    toast.success(`Test submitted! Score: ${correct}/10`);
+      const data = await response.json();
+
+      if (data.success) {
+        setResults(data.results);
+        setShowResults(true);
+        toast.success(`Test submitted! Score: ${data.results.correctAnswers}/10`);
+      } else {
+        toast.error(data.message || 'Failed to submit test');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to submit test');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const resetTest = () => {
     setTest(null);
     setShowResults(false);
+    setResults(null);
     setAnswers([]);
     setCurrentQuestion(0);
   };
 
-  // SUBSCRIPTION CHECK - FREE USERS ARE BLOCKED
   if (loading) {
     return (
       <div className="flex justify-center py-12">
@@ -162,15 +189,6 @@ export default function ChapterTestsPage() {
           <p className="text-lg text-gray-600 mb-8">
             Chapter tests are available for Silver and Gold subscribers only
           </p>
-          <div className="bg-blue-50 p-4 rounded-lg mb-6">
-            <p className="text-sm text-blue-900 font-semibold mb-2">What you'll get:</p>
-            <ul className="text-sm text-blue-800 space-y-1">
-              <li>• 10 Chapter Tests per day (Silver)</li>
-              <li>• 50 Chapter Tests per day (Gold)</li>
-              <li>• Practice topic-wise with curated questions</li>
-              <li>• Track your progress and accuracy</li>
-            </ul>
-          </div>
           <Button size="lg" onClick={() => router.push('/subscription')}>
             View Plans & Upgrade
           </Button>
@@ -179,7 +197,6 @@ export default function ChapterTestsPage() {
     );
   }
 
-  // REST OF THE COMPONENT (for Silver/Gold users)
   if (test && !showResults) {
     const question = test.questions[currentQuestion];
 
@@ -209,7 +226,7 @@ export default function ChapterTestsPage() {
               </div>
 
               <div className="text-lg font-medium text-gray-900 mb-4">
-                {question.question}
+                <LatexRenderer text={question.question} />
               </div>
 
               {question.questionImageUrl && (
@@ -245,7 +262,7 @@ export default function ChapterTestsPage() {
                       className="mr-3"
                     />
                     <div className="flex-1">
-                      {question[`option${option}`]}
+                      <LatexRenderer text={question[`option${option}`]} />
                     </div>
                   </label>
                 ))
@@ -282,7 +299,7 @@ export default function ChapterTestsPage() {
                   Next
                 </Button>
               ) : (
-                <Button onClick={submitTest} className="flex-1" variant="primary">
+                <Button onClick={submitTest} className="flex-1" variant="primary" isLoading={loading}>
                   Submit Test
                 </Button>
               )}
@@ -315,22 +332,22 @@ export default function ChapterTestsPage() {
     );
   }
 
-  if (showResults) {
+  if (showResults && results) {
     return (
       <div className="max-w-4xl mx-auto space-y-6">
         <Card className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white">
           <CardBody className="p-8 text-center">
             <h2 className="text-3xl font-bold mb-2">Test Completed!</h2>
             <p className="text-xl mb-4">
-              Your Score: {test.score}/{test.questions.length}
+              Your Score: {results.correctAnswers}/{results.totalQuestions}
             </p>
             <p className="text-lg">
-              Accuracy: {((test.score / test.questions.length) * 100).toFixed(1)}%
+              Accuracy: {results.accuracy}%
             </p>
           </CardBody>
         </Card>
 
-        {test.results.map((result: any, index: number) => (
+        {results.details.map((detail: any, index: number) => (
           <Card key={index}>
             <CardBody className="p-6">
               <div className="flex items-start justify-between mb-4">
@@ -338,35 +355,46 @@ export default function ChapterTestsPage() {
                   Question {index + 1}
                 </h3>
                 <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                  result.isCorrect
+                  detail.isCorrect
                     ? 'bg-green-100 text-green-700'
                     : 'bg-red-100 text-red-700'
                 }`}>
-                  {result.isCorrect ? '✓ Correct' : '✗ Incorrect'}
+                  {detail.isCorrect ? '✓ Correct' : '✗ Incorrect'}
                 </span>
               </div>
 
-              <p className="text-gray-900 mb-4">{result.question.question}</p>
+              <div className="text-gray-900 mb-4">
+                <LatexRenderer text={detail.question} />
+              </div>
 
               <div className="bg-gray-50 p-4 rounded-lg space-y-2">
                 <p className="text-sm">
                   <span className="font-medium">Your Answer:</span>{' '}
-                  <span className={result.isCorrect ? 'text-green-600' : 'text-red-600'}>
-                    {result.userAnswer || 'Not answered'}
+                  <span className={detail.isCorrect ? 'text-green-600' : 'text-red-600'}>
+                    {detail.userAnswer || 'Not answered'}
                   </span>
                 </p>
-                {!result.isCorrect && (
+                {!detail.isCorrect && (
                   <p className="text-sm">
                     <span className="font-medium">Correct Answer:</span>{' '}
-                    <span className="text-green-600">{result.correctAnswer}</span>
+                    <span className="text-green-600">{detail.correctAnswer}</span>
                   </p>
                 )}
               </div>
 
-              {result.question.explanation && (
+              {detail.explanation && (
                 <div className="mt-4 p-4 bg-blue-50 rounded-lg">
                   <p className="text-sm font-medium text-blue-900 mb-1">Explanation:</p>
-                  <p className="text-sm text-blue-800">{result.question.explanation}</p>
+                  <div className="text-sm text-blue-800">
+                    <LatexRenderer text={detail.explanation} />
+                  </div>
+                  {detail.explanationImageUrl && (
+                    <img
+                      src={detail.explanationImageUrl}
+                      alt="Explanation"
+                      className="mt-2 max-w-full h-auto rounded-lg"
+                    />
+                  )}
                 </div>
               )}
             </CardBody>

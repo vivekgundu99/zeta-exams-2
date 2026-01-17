@@ -103,29 +103,41 @@ export default function QuestionsPage() {
     }
   };
 
-  const loadQuestions = async () => {
-    try {
-      setLoading(true);
-      const response = await questionsAPI.getQuestions({
+  // ADD THIS in the loadQuestions function after fetching questions:
+
+const loadQuestions = async () => {
+  try {
+    setLoading(true);
+    const response = await questionsAPI.getQuestions({
+      examType,
+      subject: selectedSubject,
+      chapter: selectedChapter,
+      topic: selectedTopic,
+      page: currentPage,
+      limit: 20
+    });
+
+    if (response.data.success) {
+      setQuestions(response.data.questions);
+      setTotalPages(response.data.totalPages || 1);
+      setTotal(response.data.total || 0);
+      
+      // NEW: Save questions list to sessionStorage for navigation
+      sessionStorage.setItem('questionsList', JSON.stringify(response.data.questions));
+      sessionStorage.setItem('questionsListParams', JSON.stringify({
         examType,
         subject: selectedSubject,
         chapter: selectedChapter,
         topic: selectedTopic,
-        page: currentPage,
-        limit: 20
-      });
-
-      if (response.data.success) {
-        setQuestions(response.data.questions);
-        setTotalPages(response.data.totalPages || 1);
-        setTotal(response.data.total || 0);
-      }
-    } catch (error) {
-      toast.error('Failed to load questions');
-    } finally {
-      setLoading(false);
+        page: currentPage.toString()
+      }));
     }
-  };
+  } catch (error) {
+    toast.error('Failed to load questions');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const viewQuestion = (questionId: string) => {
     const params = new URLSearchParams({

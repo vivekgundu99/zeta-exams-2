@@ -6,7 +6,8 @@ import Card, { CardBody } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Dropdown from '@/components/ui/Dropdown';
-import { adminAPI } from '@/lib/api';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://zeta-exams-backend-2.vercel.app';
 
 export default function AdminFormulasPage() {
   const [formulas, setFormulas] = useState<any[]>([]);
@@ -28,8 +29,7 @@ export default function AdminFormulasPage() {
   const loadFormulas = async () => {
     try {
       setLoading(true);
-      // You'll need to add this endpoint to adminAPI
-      const response = await fetch('/api/formulas/admin/list', {
+      const response = await fetch(`${API_URL}/api/admin/formulas/list`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`,
         },
@@ -39,7 +39,7 @@ export default function AdminFormulasPage() {
         setFormulas(data.formulas || []);
       }
     } catch (error) {
-      console.error('Failed to load formulas');
+      console.error('Failed to load formulas:', error);
     } finally {
       setLoading(false);
     }
@@ -48,6 +48,7 @@ export default function AdminFormulasPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Validation
     if (!formData.examType || !formData.subject || !formData.chapter || !formData.topicName || !formData.pdfUrl) {
       toast.error('Please fill all required fields');
       return;
@@ -55,7 +56,8 @@ export default function AdminFormulasPage() {
 
     try {
       setLoading(true);
-      const response = await fetch('/api/admin/formulas/add', {
+      
+      const response = await fetch(`${API_URL}/api/admin/formulas/add`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -65,6 +67,7 @@ export default function AdminFormulasPage() {
       });
 
       const data = await response.json();
+      
       if (data.success) {
         toast.success('Formula added successfully!');
         setShowForm(false);
@@ -81,6 +84,7 @@ export default function AdminFormulasPage() {
         toast.error(data.message || 'Failed to add formula');
       }
     } catch (error: any) {
+      console.error('Add formula error:', error);
       toast.error('Failed to add formula');
     } finally {
       setLoading(false);
@@ -93,7 +97,7 @@ export default function AdminFormulasPage() {
     }
 
     try {
-      const response = await fetch(`/api/admin/formulas/${id}`, {
+      const response = await fetch(`${API_URL}/api/admin/formulas/${id}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`,
@@ -135,11 +139,12 @@ export default function AdminFormulasPage() {
                 <Dropdown
                   label="Exam Type"
                   value={formData.examType}
-                  onChange={(e) => setFormData({ ...formData, examType: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, examType: e.target.value, subject: '' })}
                   options={[
                     { value: 'jee', label: 'JEE' },
                     { value: 'neet', label: 'NEET' },
                   ]}
+                  required
                 />
 
                 <Dropdown
@@ -153,6 +158,7 @@ export default function AdminFormulasPage() {
                       label: s,
                     })),
                   ]}
+                  required
                 />
               </div>
 

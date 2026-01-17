@@ -1,13 +1,15 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  
-  // CRITICAL: Add output configuration for Vercel
+
+  // Vercel / Next.js production optimizations
   output: 'standalone',
-  
+  swcMinify: true,
+  trailingSlash: false,
+
+  // CloudFront images
   images: {
-    domains: ['d1234567890.cloudfront.net'], // Add your CloudFront domain
-    unoptimized: false, // Changed from true to false for production
+    domains: ['d1234567890.cloudfront.net'], // replace with real CF domain
     remotePatterns: [
       {
         protocol: 'https',
@@ -15,27 +17,25 @@ const nextConfig = {
       },
     ],
   },
-  
+
+  // Public environment variables
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
     NEXT_PUBLIC_RAZORPAY_KEY_ID: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
   },
-  
-  // Add these for better Vercel deployment
-  swcMinify: true,
-  
-  // Ensure proper trailing slash handling
-  trailingSlash: false,
-  
-  // Add proper redirects if needed
+
+  // KaTeX optimization (SAFE)
+  experimental: {
+    optimizePackageImports: ['katex'],
+  },
+
   async redirects() {
     return [];
   },
-  
-  // Handle rewrites if needed
+
   async rewrites() {
     return [];
   },
-}
+};
 
-module.exports = nextConfig
+module.exports = nextConfig;
