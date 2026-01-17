@@ -13,6 +13,7 @@ import { parseLatex } from '@/lib/utils';
 export default function ChapterTestsPage() {
   const router = useRouter();
   const [examType, setExamType] = useState('');
+  const [subscription, setSubscription] = useState<any>(null);
   const [subjects, setSubjects] = useState<string[]>([]);
   const [chapters, setChapters] = useState<string[]>([]);
   const [selectedSubject, setSelectedSubject] = useState('');
@@ -21,7 +22,7 @@ export default function ChapterTestsPage() {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<any[]>([]);
   const [showResults, setShowResults] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadUserExam();
@@ -40,9 +41,12 @@ export default function ChapterTestsPage() {
       const response = await userAPI.getProfile();
       if (response.data.success) {
         setExamType(response.data.user.exam);
+        setSubscription(response.data.subscription);
       }
     } catch (error) {
       console.error('Failed to load user exam');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -136,6 +140,46 @@ export default function ChapterTestsPage() {
     setCurrentQuestion(0);
   };
 
+  // SUBSCRIPTION CHECK - FREE USERS ARE BLOCKED
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+      </div>
+    );
+  }
+
+  if (subscription?.subscription === 'free') {
+    return (
+      <Card className="border-2 border-purple-200">
+        <CardBody className="p-12 text-center">
+          <div className="w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <span className="text-4xl">🔒</span>
+          </div>
+          <h2 className="text-3xl font-bold text-gray-900 mb-4">
+            Upgrade to Silver or Gold
+          </h2>
+          <p className="text-lg text-gray-600 mb-8">
+            Chapter tests are available for Silver and Gold subscribers only
+          </p>
+          <div className="bg-blue-50 p-4 rounded-lg mb-6">
+            <p className="text-sm text-blue-900 font-semibold mb-2">What you'll get:</p>
+            <ul className="text-sm text-blue-800 space-y-1">
+              <li>• 10 Chapter Tests per day (Silver)</li>
+              <li>• 50 Chapter Tests per day (Gold)</li>
+              <li>• Practice topic-wise with curated questions</li>
+              <li>• Track your progress and accuracy</li>
+            </ul>
+          </div>
+          <Button size="lg" onClick={() => router.push('/subscription')}>
+            View Plans & Upgrade
+          </Button>
+        </CardBody>
+      </Card>
+    );
+  }
+
+  // REST OF THE COMPONENT (for Silver/Gold users)
   if (test && !showResults) {
     const question = test.questions[currentQuestion];
 

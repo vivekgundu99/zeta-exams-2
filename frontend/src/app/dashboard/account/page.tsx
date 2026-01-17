@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import Card, { CardBody, CardHeader } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -12,11 +13,11 @@ import { formatDate, INDIAN_STATES } from '@/lib/utils';
 import { useForm } from 'react-hook-form';
 
 export default function AccountPage() {
+  const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [subscription, setSubscription] = useState<any>(null);
   const [editMode, setEditMode] = useState(false);
   const [changePasswordModal, setChangePasswordModal] = useState(false);
-  const [ticketModal, setTicketModal] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const { register, handleSubmit, formState: { errors }, watch, reset } = useForm();
@@ -105,7 +106,7 @@ export default function AccountPage() {
                 </p>
               )}
             </div>
-            <Button onClick={() => window.location.href = '/subscription'}>
+            <Button onClick={() => router.push('/subscription')}>
               {subscription?.subscription === 'free' ? 'Upgrade Plan' : 'Manage Plan'}
             </Button>
           </div>
@@ -261,7 +262,7 @@ export default function AccountPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="font-medium">Password</p>
-              <p className="text-sm text-gray-600">Last changed: {user?.lastPasswordChange || 'Never'}</p>
+              <p className="text-sm text-gray-600">Keep your account secure</p>
             </div>
             <Button variant="outline" onClick={() => setChangePasswordModal(true)}>
               Change Password
@@ -270,7 +271,7 @@ export default function AccountPage() {
         </CardBody>
       </Card>
 
-      {/* Support */}
+      {/* Support - FIXED */}
       <Card>
         <CardHeader>
           <h2 className="text-xl font-semibold">Support</h2>
@@ -281,8 +282,8 @@ export default function AccountPage() {
               <p className="font-medium">Need help?</p>
               <p className="text-sm text-gray-600">Raise a support ticket</p>
             </div>
-            <Button variant="outline" onClick={() => setTicketModal(true)}>
-              Raise Ticket
+            <Button variant="outline" onClick={() => router.push('/dashboard/support')}>
+              Support Tickets
             </Button>
           </div>
         </CardBody>
@@ -336,18 +337,6 @@ export default function AccountPage() {
             </Button>
           </div>
         </form>
-      </Modal>
-
-      {/* Ticket Modal - You can expand this */}
-      <Modal
-        isOpen={ticketModal}
-        onClose={() => setTicketModal(false)}
-        title="Raise Support Ticket"
-      >
-        <div className="space-y-4">
-          <Input label="Issue Description" placeholder="Describe your issue..." />
-          <Button fullWidth>Submit Ticket</Button>
-        </div>
       </Modal>
     </div>
   );

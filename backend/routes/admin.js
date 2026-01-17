@@ -249,6 +249,57 @@ router.post('/questions/bulk-upload', async (req, res) => {
   }
 });
 
+// @route   PUT /api/admin/questions/update
+// @desc    Update a question
+// @access  Admin
+router.put('/questions/update', async (req, res) => {
+  try {
+    const { questionId, question, optionA, optionB, optionC, optionD, answer, explanation, explanationImageUrl } = req.body;
+
+    console.log('📝 Updating question:', questionId);
+
+    const updatedQuestion = await Question.findOneAndUpdate(
+      { questionId },
+      {
+        question,
+        optionA,
+        optionB,
+        optionC,
+        optionD,
+        answer,
+        explanation,
+        explanationImageUrl
+      },
+      { new: true }
+    );
+
+    if (!updatedQuestion) {
+      console.log('❌ Question not found:', questionId);
+      return res.status(404).json({
+        success: false,
+        message: 'Question not found'
+      });
+    }
+
+    console.log('✅ Question updated successfully');
+
+    res.json({
+      success: true,
+      message: 'Question updated successfully',
+      question: updatedQuestion
+    });
+
+  } catch (error) {
+    console.error('💥 Update question error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+});
+
+
 // @route   DELETE /api/admin/questions/:questionId
 // @desc    Delete a question
 // @access  Admin

@@ -15,6 +15,7 @@ export default function MockTestsPage() {
   const [attempts, setAttempts] = useState<any[]>([]);
   const [filter, setFilter] = useState('all');
   const [examType, setExamType] = useState('');
+  const [subscription, setSubscription] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [ongoingTest, setOngoingTest] = useState<any>(null);
 
@@ -29,21 +30,27 @@ export default function MockTestsPage() {
       const profileResponse = await userAPI.getProfile();
       if (profileResponse.data.success) {
         const userExam = profileResponse.data.user.exam;
+        const userSubscription = profileResponse.data.subscription;
+        
         setExamType(userExam);
+        setSubscription(userSubscription);
 
-        const testsResponse = await mockTestsAPI.getList(userExam, filter);
-        if (testsResponse.data.success) {
-          setTests(testsResponse.data.tests || []);
-        }
+        // Only load tests if user has Gold subscription
+        if (userSubscription.subscription === 'gold') {
+          const testsResponse = await mockTestsAPI.getList(userExam, filter);
+          if (testsResponse.data.success) {
+            setTests(testsResponse.data.tests || []);
+          }
 
-        const attemptsResponse = await mockTestsAPI.getAttempts();
-        if (attemptsResponse.data.success) {
-          setAttempts(attemptsResponse.data.attempts || []);
-          
-          const ongoing = attemptsResponse.data.attempts?.find(
-            (a: any) => a.status === 'ongoing'
-          );
-          setOngoingTest(ongoing);
+          const attemptsResponse = await mockTestsAPI.getAttempts();
+          if (attemptsResponse.data.success) {
+            setAttempts(attemptsResponse.data.attempts || []);
+            
+            const ongoing = attemptsResponse.data.attempts?.find(
+              (a: any) => a.status === 'ongoing'
+            );
+            setOngoingTest(ongoing);
+          }
         }
       }
     } catch (error) {
@@ -79,6 +86,39 @@ export default function MockTestsPage() {
     );
   }
 
+  // SUBSCRIPTION CHECK - ONLY GOLD USERS CAN ACCESS
+  if (subscription?.subscription !== 'gold') {
+    return (
+      <Card className="border-2 border-yellow-200">
+        <CardBody className="p-12 text-center">
+          <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <span className="text-4xl">👑</span>
+          </div>
+          <h2 className="text-3xl font-bold text-gray-900 mb-4">
+            Upgrade to Gold for Mock Tests
+          </h2>
+          <p className="text-lg text-gray-600 mb-8">
+            Full-length mock tests are exclusive to Gold subscribers
+          </p>
+          <div className="bg-yellow-50 p-4 rounded-lg mb-6">
+            <p className="text-sm text-yellow-900 font-semibold mb-2">Gold Features:</p>
+            <ul className="text-sm text-yellow-800 space-y-1">
+              <li>• 8 Mock Tests per day</li>
+              <li>• Full-length tests (90/180 questions)</li>
+              <li>• Detailed performance analysis</li>
+              <li>• Chapter-wise breakdown</li>
+              <li>• Time management insights</li>
+            </ul>
+          </div>
+          <Button size="lg" onClick={() => router.push('/subscription')}>
+            Upgrade to Gold Plan
+          </Button>
+        </CardBody>
+      </Card>
+    );
+  }
+
+  // REST OF THE COMPONENT (for Gold users only)
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
