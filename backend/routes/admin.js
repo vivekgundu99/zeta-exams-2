@@ -336,6 +336,7 @@ router.delete('/questions/:questionId', async (req, res) => {
 // @route   GET /api/admin/questions/search
 // @desc    Search questions by ID or serial number
 // @access  Admin
+// Replace the question search endpoint with this:
 router.get('/questions/search', authenticate, isAdmin, async (req, res) => {
   try {
     const { query } = req.query;
@@ -351,13 +352,13 @@ router.get('/questions/search', authenticate, isAdmin, async (req, res) => {
 
     const searchTerm = query.trim();
 
-    // Try multiple search strategies
+    // Try multiple search strategies - EXACT match first, then partial
     const questions = await Question.find({
       $or: [
         { questionId: searchTerm },  // Exact match for questionId
-        { questionId: new RegExp(searchTerm, 'i') },  // Partial match for questionId
+        { questionId: new RegExp(`^${searchTerm}`, 'i') },  // Starts with
         { serialNumber: searchTerm },  // Exact match for serialNumber
-        { serialNumber: new RegExp(searchTerm, 'i') }  // Partial match for serialNumber
+        { serialNumber: new RegExp(searchTerm, 'i') }  // Partial match
       ]
     }).limit(50);
 
