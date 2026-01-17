@@ -331,19 +331,37 @@ router.delete('/questions/:questionId', async (req, res) => {
   }
 });
 
+// Replace the search section in admin.js with this:
+
 // @route   GET /api/admin/questions/search
 // @desc    Search questions by ID or serial number
 // @access  Admin
-router.get('/questions/search', async (req, res) => {
+router.get('/questions/search', authenticate, isAdmin, async (req, res) => {
   try {
     const { query } = req.query;
 
+    console.log('🔍 Searching for question:', query);
+
+    if (!query || query.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Search query is required'
+      });
+    }
+
+    const searchTerm = query.trim();
+
+    // Try multiple search strategies
     const questions = await Question.find({
       $or: [
-        { questionId: new RegExp(query, 'i') },
-        { serialNumber: new RegExp(query, 'i') }
+        { questionId: searchTerm },  // Exact match for questionId
+        { questionId: new RegExp(searchTerm, 'i') },  // Partial match for questionId
+        { serialNumber: searchTerm },  // Exact match for serialNumber
+        { serialNumber: new RegExp(searchTerm, 'i') }  // Partial match for serialNumber
       ]
     }).limit(50);
+
+    console.log('✅ Found questions:', questions.length);
 
     res.json({
       success: true,
@@ -352,7 +370,7 @@ router.get('/questions/search', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Search questions error:', error);
+    console.error('💥 Search questions error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
@@ -707,17 +725,36 @@ router.delete('/giftcodes/:code', async (req, res) => {
   }
 });
 
+// Add this to the existing admin.js file, replacing the tickets section
+
 // @route   GET /api/admin/tickets
-// @desc    Get all tickets
+// @desc    Get all tickets with user subscription details
 // @access  Admin
-router.get('/tickets', async (req, res) => {
+router.get('/tickets', authenticate, isAdmin, async (req, res) => {
   try {
     const tickets = await Ticket.find().sort({ createdAt: -1 });
 
+    // Fetch subscription details for each ticket
+    const ticketsWithSubscription = await Promise.all(
+      tickets.map(async (ticket) => {
+        const subscription = await Subscription.findOne({ userId: ticket.userId });
+        return {
+          ...ticket.toObject(),
+          subscriptionDetails: subscription ? {
+            subscription: subscription.subscription,
+            subscriptionStatus: subscription.subscriptionStatus,
+            subscriptionStartTime: subscription.subscriptionStartTime,
+            subscriptionEndTime: subscription.subscriptionEndTime,
+            exam: subscription.exam
+          } : null
+        };
+      })
+    );
+
     res.json({
       success: true,
-      count: tickets.length,
-      tickets
+      count: ticketsWithSubscription.length,
+      tickets: ticketsWithSubscription
     });
 
   } catch (error) {
@@ -733,7 +770,7 @@ router.get('/tickets', async (req, res) => {
 // @route   POST /api/admin/tickets/reply
 // @desc    Reply to a ticket
 // @access  Admin
-router.post('/tickets/reply', async (req, res) => {
+router.post('/tickets/reply', authenticate, isAdmin, async (req, res) => {
   try {
     const { ticketNumber, message } = req.body;
 
@@ -773,7 +810,7 @@ router.post('/tickets/reply', async (req, res) => {
 // @route   POST /api/admin/tickets/close
 // @desc    Close a ticket
 // @access  Admin
-router.post('/tickets/close', async (req, res) => {
+router.post('/tickets/close', authenticate, isAdmin, async (req, res) => {
   try {
     const { ticketNumber } = req.body;
 
@@ -811,10 +848,44 @@ router.post('/tickets/close', async (req, res) => {
   }
 });
 
+// @route   POST /api/admin/tickets/request-refund
+// @desc    Admin marks ticket for refund request
+// @access  Admin
+router.post('/tickets/request-refund', authenticate, isAdmin, async (req, res) => {
+  try {
+    const { ticketNumber } = req.body;
+
+    const ticket = await Ticket.findOne({ ticketNumber });
+
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        message: 'Ticket not found'
+      });
+    }
+
+    ticket.refundRequested = true;
+    await ticket.save();
+
+    res.json({
+      success: true,
+      message: 'Ticket marked for refund'
+    });
+
+  } catch (error) {
+    console.error('Request refund error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+});
+
 // @route   POST /api/admin/tickets/refund-eligible
 // @desc    Mark ticket as eligible for refund
 // @access  Admin
-router.post('/tickets/refund-eligible', async (req, res) => {
+router.post('/tickets/refund-eligible', authenticate, isAdmin, async (req, res) => {
   try {
     const { ticketNumber } = req.body;
 
@@ -837,32 +908,6 @@ router.post('/tickets/refund-eligible', async (req, res) => {
 
   } catch (error) {
     console.error('Mark refund eligible error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-      error: error.message
-    });
-  }
-});
-
-// @route   GET /api/admin/refunds
-// @desc    Get refund eligible tickets
-// @access  Admin
-router.get('/refunds', async (req, res) => {
-  try {
-    const tickets = await Ticket.find({ 
-      refundEligible: true,
-      refundRequested: true
-    }).sort({ createdAt: -1 });
-
-    res.json({
-      success: true,
-      count: tickets.length,
-      tickets
-    });
-
-  } catch (error) {
-    console.error('Get refunds error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',

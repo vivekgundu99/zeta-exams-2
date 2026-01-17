@@ -1,7 +1,7 @@
-// frontend/src/app/dashboard/support/page.tsx - COMPLETE FIXED VERSION
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import Card, { CardBody } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -9,10 +9,13 @@ import Input from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
 import Loader from '@/components/ui/Loader';
 import { storage } from '@/lib/utils';
+import { userAPI } from '@/lib/api';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://zeta-exams-backend-2.vercel.app';
 
 export default function TicketsPage() {
+  const router = useRouter();
+  const [subscription, setSubscription] = useState<any>(null);
   const [tickets, setTickets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -23,15 +26,31 @@ export default function TicketsPage() {
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
-    loadTickets();
+    checkSubscriptionAndLoad();
   }, []);
+
+  const checkSubscriptionAndLoad = async () => {
+    try {
+      const response = await userAPI.getProfile();
+      if (response.data.success) {
+        setSubscription(response.data.subscription);
+        
+        // Only load tickets if user has Silver or Gold
+        if (response.data.subscription.subscription !== 'free') {
+          loadTickets();
+        } else {
+          setLoading(false);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load subscription');
+      setLoading(false);
+    }
+  };
 
   const getAuthHeaders = () => {
     const token = storage.get('token');
-    console.log('🔑 Getting auth headers, token exists:', !!token);
-    
     if (!token) {
-      console.error('❌ No token found in storage');
       toast.error('Please login again');
       return null;
     }
@@ -45,8 +64,6 @@ export default function TicketsPage() {
   const loadTickets = async () => {
     try {
       setLoading(true);
-      console.log('📋 Loading tickets...');
-      
       const headers = getAuthHeaders();
       if (!headers) {
         setLoading(false);
@@ -58,23 +75,16 @@ export default function TicketsPage() {
         headers,
       });
 
-      console.log('📋 Tickets response status:', response.status);
-
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to load tickets');
+        throw new Error('Failed to load tickets');
       }
 
       const data = await response.json();
-      console.log('✅ Tickets loaded:', data);
-
       if (data.success) {
         setTickets(data.tickets || []);
-      } else {
-        throw new Error(data.message || 'Failed to load tickets');
       }
     } catch (error: any) {
-      console.error('💥 Load tickets error:', error);
+      console.error('Load tickets error:', error);
       toast.error(error.message || 'Failed to load tickets');
     } finally {
       setLoading(false);
@@ -94,8 +104,6 @@ export default function TicketsPage() {
 
     try {
       setCreating(true);
-      console.log('🎫 Creating ticket with issue:', issue);
-
       const headers = getAuthHeaders();
       if (!headers) {
         setCreating(false);
@@ -108,26 +116,24 @@ export default function TicketsPage() {
         body: JSON.stringify({ issue: issue.trim() }),
       });
 
-      console.log('🎫 Create ticket response status:', response.status);
+      const data = await response.json();
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to create ticket');
+        if (data.upgradeRequired) {
+          toast.error(data.message);
+          setTimeout(() => router.push('/subscription'), 2000);
+          return;
+        }
+        throw new Error(data.message || 'Failed to create ticket');
       }
-
-      const data = await response.json();
-      console.log('✅ Ticket created:', data);
 
       if (data.success) {
         toast.success('Ticket created successfully!');
         setShowCreateModal(false);
         setIssue('');
         loadTickets();
-      } else {
-        throw new Error(data.message || 'Failed to create ticket');
       }
     } catch (error: any) {
-      console.error('💥 Create ticket error:', error);
       toast.error(error.message || 'Failed to create ticket');
     } finally {
       setCreating(false);
@@ -147,8 +153,6 @@ export default function TicketsPage() {
 
     try {
       setSending(true);
-      console.log('💬 Sending reply to ticket:', selectedTicket.ticketNumber);
-
       const headers = getAuthHeaders();
       if (!headers) {
         setSending(false);
@@ -164,81 +168,71 @@ export default function TicketsPage() {
         }),
       });
 
-      console.log('💬 Reply response status:', response.status);
+      const data = await response.json();
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to send message');
+        if (data.maxReached) {
+          toast.error(data.message);
+          setSelectedTicket({ ...selectedTicket, maxReached: true });
+          return;
+        }
+        throw new Error(data.message || 'Failed to send message');
       }
 
-      const data = await response.json();
-      console.log('✅ Reply sent:', data);
-
       if (data.success) {
-        toast.success('Message sent successfully!');
+        toast.success(`Message sent! ${data.messagesRemaining} messages remaining.`);
         setReplyMessage('');
         setSelectedTicket(data.ticket);
         loadTickets();
-      } else {
-        throw new Error(data.message || 'Failed to send message');
       }
     } catch (error: any) {
-      console.error('💥 Send reply error:', error);
       toast.error(error.message || 'Failed to send message');
     } finally {
       setSending(false);
     }
   };
 
-  const requestRefund = async (ticketNumber: string) => {
-    if (!window.confirm('Request refund for this ticket?')) {
-      return;
-    }
-
-    try {
-      console.log('💰 Requesting refund for ticket:', ticketNumber);
-
-      const headers = getAuthHeaders();
-      if (!headers) return;
-
-      const response = await fetch(`${API_URL}/api/tickets/request-refund`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ ticketNumber }),
-      });
-
-      console.log('💰 Refund request response status:', response.status);
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to request refund');
-      }
-
-      const data = await response.json();
-      console.log('✅ Refund requested:', data);
-
-      if (data.success) {
-        toast.success('Refund request submitted!');
-        loadTickets();
-      } else {
-        throw new Error(data.message || 'Failed to request refund');
-      }
-    } catch (error: any) {
-      console.error('💥 Request refund error:', error);
-      toast.error(error.message || 'Failed to request refund');
-    }
-  };
-
-  const activeTickets = tickets.filter((t) => t.status === 'active');
-  const closedTickets = tickets.filter((t) => t.status === 'inactive');
-
+  // Check if user is Free tier
   if (loading) {
     return (
       <div className="flex justify-center py-12">
-        <Loader size="lg" text="Loading tickets..." />
+        <Loader size="lg" text="Loading..." />
       </div>
     );
   }
+
+  if (subscription?.subscription === 'free') {
+    return (
+      <Card className="border-2 border-purple-200">
+        <CardBody className="p-12 text-center">
+          <div className="w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <span className="text-4xl">🎫</span>
+          </div>
+          <h2 className="text-3xl font-bold text-gray-900 mb-4">
+            Upgrade to Access Support
+          </h2>
+          <p className="text-lg text-gray-600 mb-8">
+            Support tickets are available for Silver and Gold subscribers
+          </p>
+          <div className="bg-blue-50 p-4 rounded-lg mb-6">
+            <p className="text-sm text-blue-900 font-semibold mb-2">With Support Access:</p>
+            <ul className="text-sm text-blue-800 space-y-1 text-left max-w-md mx-auto">
+              <li>• Create 1 support ticket per day</li>
+              <li>• Get help from our support team</li>
+              <li>• Up to 10 messages per ticket</li>
+              <li>• Fast response times</li>
+            </ul>
+          </div>
+          <Button size="lg" onClick={() => router.push('/subscription')}>
+            Upgrade Now
+          </Button>
+        </CardBody>
+      </Card>
+    );
+  }
+
+  const activeTickets = tickets.filter((t) => t.status === 'active');
+  const closedTickets = tickets.filter((t) => t.status === 'inactive');
 
   return (
     <div className="space-y-6">
@@ -271,37 +265,26 @@ export default function TicketsPage() {
                         <span className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-sm font-semibold">
                           Active
                         </span>
-                        {ticket.refundRequested && (
-                          <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm font-semibold">
-                            Refund Requested
-                          </span>
-                        )}
                       </div>
                       <p className="text-gray-700 mb-2">{ticket.issue}</p>
-                      <p className="text-xs text-gray-500">
-                        Created: {new Date(ticket.createdAt).toLocaleString()}
-                      </p>
+                      <div className="flex gap-2 text-xs">
+                        <span className="px-2 py-1 bg-gray-100 rounded">
+                          {ticket.userMessageCount}/{ticket.maxUserMessages} messages used
+                        </span>
+                        <span className="text-gray-500">
+                          Created: {new Date(ticket.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex gap-3">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setSelectedTicket(ticket)}
-                    >
-                      View Conversation
-                    </Button>
-                    {!ticket.refundRequested && (
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        onClick={() => requestRefund(ticket.ticketNumber)}
-                      >
-                        Request Refund
-                      </Button>
-                    )}
-                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setSelectedTicket(ticket)}
+                  >
+                    View Conversation
+                  </Button>
                 </CardBody>
               </Card>
             ))}
@@ -368,6 +351,15 @@ export default function TicketsPage() {
         title="Create Support Ticket"
       >
         <div className="space-y-4">
+          <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-800">
+            <p className="font-semibold mb-1">Important:</p>
+            <ul className="space-y-1">
+              <li>• You can create 1 ticket per day</li>
+              <li>• Maximum 10 messages per ticket</li>
+              <li>• Response within 24-48 hours</li>
+            </ul>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Describe your issue ({issue.length}/150)
@@ -411,8 +403,11 @@ export default function TicketsPage() {
               <p className="text-blue-800">{selectedTicket.issue}</p>
             </div>
 
+            {/* Conversation */}
             <div className="space-y-3 max-h-96 overflow-y-auto">
-              <h4 className="font-semibold text-gray-900">Conversation:</h4>
+              <h4 className="font-semibold text-gray-900">
+                Conversation ({selectedTicket.userMessageCount}/{selectedTicket.maxUserMessages} messages used):
+              </h4>
               {selectedTicket.conversation.map((msg: any, i: number) => (
                 <div
                   key={i}
@@ -437,23 +432,39 @@ export default function TicketsPage() {
 
             {selectedTicket.status === 'active' && (
               <>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Reply ({replyMessage.length}/150)
-                  </label>
-                  <textarea
-                    value={replyMessage}
-                    onChange={(e) => setReplyMessage(e.target.value)}
-                    maxLength={150}
-                    rows={3}
-                    className="w-full px-4 py-2 border-2 rounded-lg focus:border-purple-600 focus:outline-none"
-                    placeholder="Type your reply..."
-                  />
-                </div>
+                {selectedTicket.userMessageCount < selectedTicket.maxUserMessages ? (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Reply ({replyMessage.length}/150)
+                        <span className="text-purple-600 ml-2">
+                          {selectedTicket.maxUserMessages - selectedTicket.userMessageCount} messages left
+                        </span>
+                      </label>
+                      <textarea
+                        value={replyMessage}
+                        onChange={(e) => setReplyMessage(e.target.value)}
+                        maxLength={150}
+                        rows={3}
+                        className="w-full px-4 py-2 border-2 rounded-lg focus:border-purple-600 focus:outline-none"
+                        placeholder="Type your reply..."
+                      />
+                    </div>
 
-                <Button onClick={sendReply} isLoading={sending} fullWidth>
-                  Send Reply
-                </Button>
+                    <Button onClick={sendReply} isLoading={sending} fullWidth>
+                      Send Reply
+                    </Button>
+                  </>
+                ) : (
+                  <div className="bg-red-50 p-4 rounded-lg text-center">
+                    <p className="text-red-900 font-semibold">
+                      Maximum messages reached
+                    </p>
+                    <p className="text-sm text-red-700 mt-1">
+                      You've used all {selectedTicket.maxUserMessages} available messages for this ticket.
+                    </p>
+                  </div>
+                )}
               </>
             )}
           </div>

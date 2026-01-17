@@ -7,6 +7,7 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
 import { adminAPI } from '@/lib/api';
+import { formatDate } from '@/lib/utils';
 
 export default function AdminTicketsPage() {
   const [tickets, setTickets] = useState<any[]>([]);
@@ -77,6 +78,22 @@ export default function AdminTicketsPage() {
     }
   };
 
+  const handleRequestRefund = async (ticketNumber: string) => {
+    if (!window.confirm('Mark this ticket for refund request?')) {
+      return;
+    }
+
+    try {
+      const response = await adminAPI.requestRefund(ticketNumber);
+      if (response.data.success) {
+        toast.success('Ticket marked for refund request');
+        loadTickets();
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to mark for refund');
+    }
+  };
+
   const handleMarkRefundEligible = async (ticketNumber: string) => {
     if (!window.confirm('Mark this ticket as eligible for refund?')) {
       return;
@@ -132,19 +149,67 @@ export default function AdminTicketsPage() {
                         {new Date(ticket.createdAt).toLocaleDateString()}
                       </span>
                     </div>
+                    
                     <p className="font-semibold text-gray-900 mb-1">{ticket.userName}</p>
                     <p className="text-sm text-gray-600 mb-2">{ticket.userEmail}</p>
-                    <p className="text-sm text-gray-700 line-clamp-2">{ticket.issue}</p>
-                    {ticket.refundRequested && (
-                      <span className="inline-block mt-2 px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-semibold">
-                        💰 Refund Requested
-                      </span>
+                    
+                    {/* Subscription Details */}
+                    {ticket.subscriptionDetails && (
+                      <div className="bg-blue-50 p-2 rounded mb-2 text-xs">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-semibold">Plan:</span>
+                          <span className={`px-2 py-0.5 rounded font-semibold ${
+                            ticket.subscriptionDetails.subscription === 'gold'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : ticket.subscriptionDetails.subscription === 'silver'
+                              ? 'bg-gray-200 text-gray-700'
+                              : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {ticket.subscriptionDetails.subscription.toUpperCase()}
+                          </span>
+                        </div>
+                        {ticket.subscriptionDetails.subscriptionStartTime && (
+                          <p>
+                            <span className="font-semibold">Started:</span>{' '}
+                            {formatDate(ticket.subscriptionDetails.subscriptionStartTime)}
+                          </p>
+                        )}
+                        {ticket.subscriptionDetails.subscriptionEndTime && (
+                          <p>
+                            <span className="font-semibold">Expires:</span>{' '}
+                            {formatDate(ticket.subscriptionDetails.subscriptionEndTime)}
+                          </p>
+                        )}
+                        <p>
+                          <span className="font-semibold">Status:</span>{' '}
+                          <span className={
+                            ticket.subscriptionDetails.subscriptionStatus === 'active'
+                              ? 'text-green-700'
+                              : 'text-red-700'
+                          }>
+                            {ticket.subscriptionDetails.subscriptionStatus.toUpperCase()}
+                          </span>
+                        </p>
+                      </div>
                     )}
-                    {ticket.refundEligible && (
-                      <span className="inline-block mt-2 ml-2 px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-semibold">
-                        ✅ Refund Eligible
+                    
+                    <p className="text-sm text-gray-700 line-clamp-2 mb-2">{ticket.issue}</p>
+                    
+                    <div className="flex gap-2 text-xs">
+                      <span className="px-2 py-1 bg-gray-100 rounded">
+                        {ticket.userMessageCount}/{ticket.maxUserMessages} messages
                       </span>
-                    )}
+                      {ticket.refundRequested && (
+                        <span className="px-2 py-1 bg-red-100 text-red-700 rounded font-semibold">
+                          💰 Refund Requested
+                        </span>
+                      )}
+                      {ticket.refundEligible && (
+                        <span className="px-2 py-1 bg-green-100 text-green-700 rounded font-semibold">
+                          ✅ Refund Eligible
+                        </span>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -171,7 +236,7 @@ export default function AdminTicketsPage() {
                         {ticket.ticketNumber}
                       </span>
                       <span className="text-xs text-gray-500">
-                        {new Date(ticket.resolvedAt || ticket.createdAt).toLocaleDateString()}
+                        {new Date(ticket.resolvedAt || ticket.updatedAt).toLocaleDateString()}
                       </span>
                     </div>
                     <p className="font-semibold text-gray-700 mb-1">{ticket.userName}</p>
@@ -197,7 +262,57 @@ export default function AdminTicketsPage() {
               <p className="text-sm text-gray-600 mb-1">User</p>
               <p className="font-semibold text-gray-900">{selectedTicket.userName}</p>
               <p className="text-sm text-gray-600">{selectedTicket.userEmail}</p>
+              <p className="text-xs text-gray-500 mt-1">ID: {selectedTicket.userId}</p>
             </div>
+
+            {/* Subscription Details */}
+            {selectedTicket.subscriptionDetails && (
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <h4 className="font-semibold text-blue-900 mb-3">Subscription Details</h4>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-blue-700 font-medium">Plan</p>
+                    <p className="text-blue-900 font-bold">
+                      {selectedTicket.subscriptionDetails.subscription.toUpperCase()}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-blue-700 font-medium">Status</p>
+                    <p className={`font-bold ${
+                      selectedTicket.subscriptionDetails.subscriptionStatus === 'active'
+                        ? 'text-green-700'
+                        : 'text-red-700'
+                    }`}>
+                      {selectedTicket.subscriptionDetails.subscriptionStatus.toUpperCase()}
+                    </p>
+                  </div>
+                  {selectedTicket.subscriptionDetails.subscriptionStartTime && (
+                    <div>
+                      <p className="text-blue-700 font-medium">Start Date</p>
+                      <p className="text-blue-900">
+                        {formatDate(selectedTicket.subscriptionDetails.subscriptionStartTime)}
+                      </p>
+                    </div>
+                  )}
+                  {selectedTicket.subscriptionDetails.subscriptionEndTime && (
+                    <div>
+                      <p className="text-blue-700 font-medium">End Date</p>
+                      <p className="text-blue-900">
+                        {formatDate(selectedTicket.subscriptionDetails.subscriptionEndTime)}
+                      </p>
+                    </div>
+                  )}
+                  {selectedTicket.subscriptionDetails.exam && (
+                    <div>
+                      <p className="text-blue-700 font-medium">Exam</p>
+                      <p className="text-blue-900">
+                        {selectedTicket.subscriptionDetails.exam.toUpperCase()}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="bg-blue-50 p-4 rounded-lg">
               <p className="text-sm text-blue-900 font-semibold mb-2">Issue:</p>
@@ -206,7 +321,9 @@ export default function AdminTicketsPage() {
 
             {/* Conversation */}
             <div className="space-y-3 max-h-96 overflow-y-auto">
-              <h4 className="font-semibold text-gray-900">Conversation:</h4>
+              <h4 className="font-semibold text-gray-900">
+                Conversation ({selectedTicket.userMessageCount}/{selectedTicket.maxUserMessages} user messages):
+              </h4>
               {selectedTicket.conversation.map((msg: any, i: number) => (
                 <div
                   key={i}
@@ -257,15 +374,41 @@ export default function AdminTicketsPage() {
                   </Button>
                 </div>
 
-                {selectedTicket.refundRequested && !selectedTicket.refundEligible && (
-                  <Button
-                    fullWidth
-                    variant="secondary"
-                    onClick={() => handleMarkRefundEligible(selectedTicket.ticketNumber)}
-                  >
-                    Mark Eligible for Refund
-                  </Button>
-                )}
+                {/* Refund Actions - Only show for active tickets */}
+                <div className="pt-4 border-t space-y-2">
+                  <h4 className="font-semibold text-gray-900">Refund Actions:</h4>
+                  
+                  {!selectedTicket.refundRequested && (
+                    <Button
+                      fullWidth
+                      variant="secondary"
+                      onClick={() => handleRequestRefund(selectedTicket.ticketNumber)}
+                    >
+                      🔄 Request Refund for User
+                    </Button>
+                  )}
+
+                  {selectedTicket.refundRequested && !selectedTicket.refundEligible && (
+                    <Button
+                      fullWidth
+                      variant="primary"
+                      onClick={() => handleMarkRefundEligible(selectedTicket.ticketNumber)}
+                    >
+                      ✅ Mark Eligible for Refund
+                    </Button>
+                  )}
+
+                  {selectedTicket.refundEligible && (
+                    <div className="bg-green-50 p-3 rounded-lg text-center">
+                      <p className="text-green-900 font-semibold">
+                        ✅ This ticket is eligible for refund
+                      </p>
+                      <p className="text-sm text-green-700 mt-1">
+                        Process refund from the Refunds page
+                      </p>
+                    </div>
+                  )}
+                </div>
               </>
             )}
           </div>

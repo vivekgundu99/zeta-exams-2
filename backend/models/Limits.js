@@ -24,6 +24,10 @@ const limitsSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  ticketCount: {
+    type: Number,
+    default: 0
+  },
   questionCountLimitReached: {
     type: Boolean,
     default: false
@@ -33,6 +37,10 @@ const limitsSchema = new mongoose.Schema({
     default: false
   },
   mockTestCountLimitReached: {
+    type: Boolean,
+    default: false
+  },
+  ticketCountLimitReached: {
     type: Boolean,
     default: false
   },
@@ -58,17 +66,20 @@ limitsSchema.statics.getLimitsForSubscription = function(subscription) {
     free: {
       questions: 50,
       chapterTests: 0,
-      mockTests: 0
+      mockTests: 0,
+      tickets: 0  // Free users cannot create tickets
     },
     silver: {
       questions: 200,
       chapterTests: 10,
-      mockTests: 0
+      mockTests: 0,
+      tickets: 1  // 1 ticket per day
     },
     gold: {
       questions: 5000,
       chapterTests: 50,
-      mockTests: 8
+      mockTests: 8,
+      tickets: 1  // 1 ticket per day
     }
   };
   return limits[subscription] || limits.free;
@@ -81,6 +92,7 @@ limitsSchema.methods.checkLimits = function() {
   this.questionCountLimitReached = this.questionCount >= limits.questions;
   this.chapterTestCountLimitReached = this.chapterTestCount >= limits.chapterTests;
   this.mockTestCountLimitReached = this.mockTestCount >= limits.mockTests;
+  this.ticketCountLimitReached = this.ticketCount >= limits.tickets;
   
   return {
     questions: {
@@ -97,6 +109,11 @@ limitsSchema.methods.checkLimits = function() {
       used: this.mockTestCount,
       limit: limits.mockTests,
       reached: this.mockTestCountLimitReached
+    },
+    tickets: {
+      used: this.ticketCount,
+      limit: limits.tickets,
+      reached: this.ticketCountLimitReached
     }
   };
 };

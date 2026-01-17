@@ -8,7 +8,6 @@ import Button from '@/components/ui/Button';
 import Dropdown from '@/components/ui/Dropdown';
 import Loader from '@/components/ui/Loader';
 import { questionsAPI, userAPI } from '@/lib/api';
-import { storage } from '@/lib/utils';
 
 export default function QuestionsPage() {
   const router = useRouter();
@@ -20,6 +19,9 @@ export default function QuestionsPage() {
   const [selectedChapter, setSelectedChapter] = useState('');
   const [selectedTopic, setSelectedTopic] = useState('');
   const [questions, setQuestions] = useState<any[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -48,7 +50,7 @@ export default function QuestionsPage() {
     if (selectedTopic) {
       loadQuestions();
     }
-  }, [selectedTopic]);
+  }, [selectedTopic, currentPage]);
 
   const loadUserExam = async () => {
     try {
@@ -80,6 +82,7 @@ export default function QuestionsPage() {
         setSelectedChapter('');
         setTopics([]);
         setQuestions([]);
+        setCurrentPage(1);
       }
     } catch (error) {
       toast.error('Failed to load chapters');
@@ -93,6 +96,7 @@ export default function QuestionsPage() {
         setTopics(response.data.topics);
         setSelectedTopic('');
         setQuestions([]);
+        setCurrentPage(1);
       }
     } catch (error) {
       toast.error('Failed to load topics');
@@ -107,10 +111,14 @@ export default function QuestionsPage() {
         subject: selectedSubject,
         chapter: selectedChapter,
         topic: selectedTopic,
+        page: currentPage,
+        limit: 20
       });
 
       if (response.data.success) {
         setQuestions(response.data.questions);
+        setTotalPages(response.data.totalPages || 1);
+        setTotal(response.data.total || 0);
       }
     } catch (error) {
       toast.error('Failed to load questions');
@@ -120,7 +128,29 @@ export default function QuestionsPage() {
   };
 
   const viewQuestion = (questionId: string) => {
-    router.push(`/dashboard/questions/${questionId}`);
+    const params = new URLSearchParams({
+      examType,
+      subject: selectedSubject,
+      chapter: selectedChapter,
+      topic: selectedTopic,
+      page: currentPage.toString()
+    });
+    router.push(`/dashboard/questions/${questionId}?${params.toString()}`);
+  };
+
+  const getStatusBadge = (status: string) => {
+    if (status === 'attempted') {
+      return (
+        <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-semibold">
+          ✓ Attempted
+        </span>
+      );
+    }
+    return (
+      <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-semibold">
+        Unattempted
+      </span>
+    );
   };
 
   return (
@@ -181,10 +211,10 @@ export default function QuestionsPage() {
           <CardBody>
             <div className="mb-4 flex items-center justify-between">
               <h3 className="font-semibold text-gray-900">
-                Questions ({questions.length} total)
+                Questions ({total} total)
               </h3>
               <p className="text-sm text-gray-600">
-                Showing {questions.length} of {questions.length}
+                Page {currentPage} of {totalPages} | Showing {questions.length} questions
               </p>
             </div>
 
@@ -202,6 +232,9 @@ export default function QuestionsPage() {
                       Type
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       ID
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -213,11 +246,11 @@ export default function QuestionsPage() {
                   {questions.map((question, index) => (
                     <tr key={question.questionId} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                        {index + 1}
+                        {(currentPage - 1) * 20 + index + 1}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900 max-w-md">
                         <div className="truncate">
-                          {question.question.replace(/latex:/g, '')}
+                          {question.question.replace(/latex:/g, '').replace(/\$\$/g, '').substring(0, 100)}...
                         </div>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
@@ -231,8 +264,11 @@ export default function QuestionsPage() {
                           {question.questionType === 'S' ? 'MCQ' : 'Numerical'}
                         </span>
                       </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {getStatusBadge(question.status)}
+                      </td>
                       <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
-                        ID: {question.questionId}
+                        {question.questionId}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <Button
@@ -240,7 +276,7 @@ export default function QuestionsPage() {
                           variant="outline"
                           onClick={() => viewQuestion(question.questionId)}
                         >
-                          View
+                          {question.status === 'attempted' ? 'Review' : 'Attempt'}
                         </Button>
                       </td>
                     </tr>
@@ -248,6 +284,33 @@ export default function QuestionsPage() {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="mt-6 flex items-center justify-between">
+                <p className="text-sm text-gray-600">
+                  Page {currentPage} of {totalPages}
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardBody>
         </Card>
       ) : (

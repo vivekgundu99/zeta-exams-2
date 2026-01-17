@@ -47,6 +47,14 @@ const ticketSchema = new mongoose.Schema({
     maxlength: 150
   },
   conversation: [messageSchema],
+  userMessageCount: {
+    type: Number,
+    default: 1  // Starts at 1 because issue is first message
+  },
+  maxUserMessages: {
+    type: Number,
+    default: 10
+  },
   refundRequested: {
     type: Boolean,
     default: false
@@ -67,5 +75,10 @@ const ticketSchema = new mongoose.Schema({
 ticketSchema.index({ ticketNumber: 1 });
 ticketSchema.index({ userId: 1 });
 ticketSchema.index({ status: 1 });
+
+// Method to check if user can add more messages
+ticketSchema.methods.canAddUserMessage = function() {
+  return this.userMessageCount < this.maxUserMessages;
+};
 
 module.exports = mongoose.model('Ticket', ticketSchema);

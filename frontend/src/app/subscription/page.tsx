@@ -31,10 +31,8 @@ export default function SubscriptionPage() {
     try {
       const response = await subscriptionAPI.getStatus();
       if (response.data.success) {
-        setCurrentPlan(response.data.subscription.type);
-        if (response.data.subscription.type === 'gold') {
-          router.push('/dashboard');
-        }
+        const sub = response.data.subscription;
+        setCurrentPlan(sub?.subscription || 'free');
       }
     } catch (error) {
       console.error('Failed to load subscription');
@@ -180,9 +178,9 @@ export default function SubscriptionPage() {
         <div className="text-center mb-12">
           <h1 className="text-5xl font-bold text-gradient mb-3">Choose Your Plan</h1>
           <p className="text-xl text-gray-600">Start your preparation journey with the perfect plan</p>
-          {currentPlan !== 'free' && (
+          {currentPlan && currentPlan !== 'free' && (
             <div className="mt-4 inline-block px-6 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-full shadow-lg">
-              Current: {currentPlan.toUpperCase()}
+              Current: {currentPlan?.toUpperCase()}
             </div>
           )}
         </div>
@@ -265,7 +263,7 @@ export default function SubscriptionPage() {
                     <div key={key} className="flex items-start gap-2">
                       <svg
                         className={`w-5 h-5 mt-0.5 flex-shrink-0 ${
-                          value.includes('No')
+                          String(value).includes('No')
                             ? 'text-red-500'
                             : 'text-green-500'
                         }`}
@@ -273,13 +271,13 @@ export default function SubscriptionPage() {
                         stroke="currentColor"
                         viewBox="0 0 24 24"
                       >
-                        {value.includes('No') ? (
+                        {String(value).includes('No') ? (
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         ) : (
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         )}
                       </svg>
-                      <span className="text-sm text-gray-700">{value}</span>
+                      <span className="text-sm text-gray-700">{String(value)}</span>
                     </div>
                   ))}
                 </div>
