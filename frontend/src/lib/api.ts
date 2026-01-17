@@ -249,6 +249,10 @@ export const adminAPI = {
   closeTicket: (ticketNumber: string) =>
     api.post('/api/admin/tickets/close', { ticketNumber }),
   
+  // FIX: Add missing requestRefund method
+  requestRefund: (ticketNumber: string) =>
+    api.post('/api/admin/tickets/refund-request', { ticketNumber }),
+  
   markRefundEligible: (ticketNumber: string) =>
     api.post('/api/admin/tickets/refund-eligible', { ticketNumber }),
   
