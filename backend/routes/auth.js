@@ -94,10 +94,12 @@ router.post('/send-otp', otpLimiter, async (req, res) => {
 // @access  Public
 router.post('/register', async (req, res) => {
   try {
+    console.log('📝 REGISTRATION REQUEST RECEIVED');
     const { email, phoneNumber, password, confirmPassword, otp } = req.body;
 
     // Validate required fields
     if (!email || !phoneNumber || !password || !confirmPassword || !otp) {
+      console.log('❌ Missing required fields');
       return res.status(400).json({
         success: false,
         message: 'All fields are required'
@@ -106,11 +108,14 @@ router.post('/register', async (req, res) => {
 
     // Validate password match
     if (password !== confirmPassword) {
+      console.log('❌ Passwords do not match');
       return res.status(400).json({
         success: false,
         message: 'Passwords do not match'
       });
     }
+
+    console.log('🔍 Verifying OTP for:', email);
 
     // Verify OTP
     const otpRecord = await OTP.findOne({ 
@@ -120,6 +125,7 @@ router.post('/register', async (req, res) => {
     });
 
     if (!otpRecord) {
+      console.log('❌ OTP not found or already used');
       return res.status(400).json({
         success: false,
         message: 'OTP not found or already used'
@@ -127,6 +133,7 @@ router.post('/register', async (req, res) => {
     }
 
     if (!otpRecord.isValid()) {
+      console.log('❌ OTP expired or invalid');
       return res.status(400).json({
         success: false,
         message: 'OTP expired or invalid'
@@ -134,6 +141,7 @@ router.post('/register', async (req, res) => {
     }
 
     if (otpRecord.otp !== otp) {
+      console.log('❌ Invalid OTP');
       otpRecord.attempts += 1;
       await otpRecord.save();
 
@@ -144,22 +152,28 @@ router.post('/register', async (req, res) => {
       });
     }
 
+    console.log('✅ OTP verified successfully');
+
     // Check if user already exists
+    const encryptedPhone = encryptPhone(phoneNumber);
     const existingUser = await User.findOne({ 
-      $or: [{ email }, { phoneNumber: encryptPhone(phoneNumber) }] 
+      $or: [{ email }, { phoneNumber: encryptedPhone }] 
     });
 
     if (existingUser) {
+      console.log('❌ User already exists');
       return res.status(400).json({
         success: false,
         message: 'User already exists with this email or phone number'
       });
     }
 
-    // Create user
-    const userId = generateUserId();
-    const encryptedPhone = encryptPhone(phoneNumber);
+    console.log('👤 Creating user...');
 
+    // Generate userId
+    const userId = generateUserId();
+
+    // Create user
     const user = await User.create({
       userId,
       email,
@@ -167,6 +181,8 @@ router.post('/register', async (req, res) => {
       loginStatus: false,
       lastLoginTime: null
     });
+
+    console.log('✅ User created:', userId);
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -179,6 +195,8 @@ router.post('/register', async (req, res) => {
       exam: null
     });
 
+    console.log('✅ User data created');
+
     // Create free subscription
     await Subscription.create({
       userId,
@@ -188,21 +206,40 @@ router.post('/register', async (req, res) => {
       subscriptionStatus: 'active'
     });
 
+    console.log('✅ Subscription created');
+
     // Create limits
     await Limits.create({
       userId,
       subscription: 'free',
+      questionCount: 0,
+      chapterTestCount: 0,
+      mockTestCount: 0,
+      ticketCount: 0,
+      questionCountLimitReached: false,
+      chapterTestCountLimitReached: false,
+      mockTestCountLimitReached: false,
+      ticketCountLimitReached: false,
       limitResetTime: getNextResetTime()
     });
+
+    console.log('✅ Limits created');
 
     // Mark OTP as used
     otpRecord.isUsed = true;
     await otpRecord.save();
 
-    // Generate JWT token
-    const token = generateToken(userId, email, false);
+    console.log('✅ OTP marked as used');
 
-    res.status(201).json({
+    // Generate JWT token
+    console.log('🔑 Generating JWT token...');
+    const token = generateToken(userId, email, false);
+    console.log('✅ JWT token generated');
+
+    console.log('🎉 Registration completed successfully!');
+
+    // Return success response
+    return res.status(201).json({
       success: true,
       message: 'Registration successful',
       token,
@@ -215,11 +252,15 @@ router.post('/register', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({
+    console.error('💥 REGISTRATION ERROR:', error);
+    console.error('Error stack:', error.stack);
+    
+    // Send detailed error response
+    return res.status(500).json({
       success: false,
-      message: 'Server error',
-      error: error.message
+      message: 'Server error during registration',
+      error: process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message,
+      details: process.env.NODE_ENV === 'production' ? undefined : error.stack
     });
   }
 });
