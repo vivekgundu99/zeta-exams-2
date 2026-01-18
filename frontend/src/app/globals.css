@@ -4,8 +4,7 @@
 
 @layer base {
   :root {
-    /* REQUIRED for border-border */
-    --border: 214 32% 91%;
+    --border: 214.3 31.8% 91.4%;
   }
 
   * {
