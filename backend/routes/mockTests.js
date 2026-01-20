@@ -97,6 +97,8 @@ router.post('/start', authenticate, async (req, res) => {
   try {
     const { testId } = req.body;
 
+    console.log('🎯 Start mock test:', testId);
+
     // Check for ongoing test
     const ongoingTest = await MockTestAttempt.findOne({
       userId: req.user.userId,
@@ -111,17 +113,29 @@ router.post('/start', authenticate, async (req, res) => {
       });
     }
 
-    // Check and reset limits if needed
-    const limits = await Limits.findOne({ userId: req.user.userId });
+    // Get or create limits
+    let limits = await Limits.findOne({ userId: req.user.userId });
     
-    if (limits && needsLimitReset(limits.limitResetTime)) {
+    if (!limits) {
+      const subscription = await Subscription.findOne({ userId: req.user.userId });
+      limits = await Limits.create({
+        userId: req.user.userId,
+        subscription: subscription?.subscription || 'free',
+        questionCount: 0,
+        chapterTestCount: 0,
+        mockTestCount: 0,
+        ticketCount: 0,
+        limitResetTime: getNextResetTime()
+      });
+    }
+    
+    if (needsLimitReset(limits.limitResetTime)) {
       limits.mockTestCount = 0;
       limits.mockTestCountLimitReached = false;
       limits.limitResetTime = getNextResetTime();
       await limits.save();
     }
 
-    // Check mock test limit
     const limitStatus = limits.checkLimits();
     if (limitStatus.mockTests.reached) {
       return res.status(403).json({
@@ -157,7 +171,8 @@ router.post('/start', authenticate, async (req, res) => {
     limits.mockTestCount += 1;
     await limits.save();
 
-    // Send full test with questions
+    console.log('✅ Mock test started');
+
     res.json({
       success: true,
       test: {
@@ -175,7 +190,7 @@ router.post('/start', authenticate, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Start mock test error:', error);
+    console.error('💥 Start mock test error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',

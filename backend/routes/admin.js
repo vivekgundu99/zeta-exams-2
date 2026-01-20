@@ -91,6 +91,11 @@ router.post('/questions/bulk-upload', async (req, res) => {
   try {
     const { csvText, examType } = req.body;
 
+    console.log('📤 Bulk upload request:', {
+      examType,
+      linesCount: csvText ? csvText.split('\n').length : 0
+    });
+
     if (!csvText || !examType) {
       return res.status(400).json({
         success: false,
@@ -98,23 +103,22 @@ router.post('/questions/bulk-upload', async (req, res) => {
       });
     }
 
-    const lines = csvText.trim().split('\n');
+    const lines = csvText.trim().split('\n').filter(l => l.trim());
     const questions = [];
     const errors = [];
 
-    // FIX: Get current max question ID from database
+    // Get current max question ID
     const lastQuestion = await Question.findOne()
       .sort({ questionId: -1 })
       .select('questionId');
     
-    let questionCount = lastQuestion 
-      ? parseInt(lastQuestion.questionId) 
-      : 0;
+    let questionCount = lastQuestion ? parseInt(lastQuestion.questionId) : 0;
 
-    console.log('📊 Starting bulk upload');
-    console.log('   Last Question ID:', lastQuestion?.questionId || 'None');
-    console.log('   Starting from:', questionCount + 1);
-    console.log('   Total lines:', lines.length);
+    console.log('📊 Processing:', {
+      lastQuestionId: lastQuestion?.questionId || 'None',
+      startingFrom: questionCount + 1,
+      totalLines: lines.length
+    });
 
     for (let i = 0; i < lines.length; i++) {
       try {
@@ -125,7 +129,7 @@ router.post('/questions/bulk-upload', async (req, res) => {
           continue;
         }
 
-        const questionType = parts[0]?.trim(); // S or N
+        const questionType = parts[0]?.trim();
         const subject = parts[1]?.trim();
         const chapter = parts[2]?.trim();
         const topic = parts[3]?.trim();
@@ -141,41 +145,43 @@ router.post('/questions/bulk-upload', async (req, res) => {
         const optionCImageUrl = parts[13]?.trim() || null;
         const optionDImageUrl = parts[14]?.trim() || null;
         const explanation = parts[15]?.trim() || null;
+        const explanationImageUrl = parts[16]?.trim() || null;
 
-        // Validate required fields
+        // Validate
         if (!questionType || !subject || !chapter || !topic || !question || !answer) {
           errors.push(`Line ${i + 1}: Missing required fields`);
           continue;
         }
 
         if (!['S', 'N'].includes(questionType)) {
-          errors.push(`Line ${i + 1}: Invalid question type "${questionType}" (must be S or N)`);
+          errors.push(`Line ${i + 1}: Invalid question type`);
           continue;
         }
 
-        // FIX: Increment BEFORE using
         questionCount++;
         const questionId = generateQuestionId(questionCount);
         
-        // Generate chapter and topic IDs
-        const chapterNum = '1'; // You may want to implement chapter numbering
-        const topicId = 'A'; // You may want to implement topic ID generation
-        const serialNumber = generateSerialNumber(
-          examType,
-          subject,
-          chapterNum,
-          topicId,
-          questionCount
-        );
+        const subjectCode = {
+          'physics': 'P',
+          'chemistry': 'C',
+          'mathematics': 'M',
+          'biology': 'B'
+        }[subject.toLowerCase()] || 'X';
 
-        const questionData = {
+        const chapterNum = '1';
+        const topicId = 'A';
+        
+        const serialNumber = `${examType === 'jee' ? 'J' : 'N'}${subjectCode}${chapterNum}${topicId}${questionCount}`;
+        const chapterId = `${examType === 'jee' ? 'J' : 'N'}${subjectCode}${chapterNum}`;
+
+        questions.push({
           questionId,
           serialNumber,
           examType,
           questionType,
           subject,
           chapter,
-          chapterId: `${examType === 'jee' ? 'J' : 'N'}${subject[0]}${chapterNum}`,
+          chapterId,
           topic,
           topicId,
           question: question.replace(/latex:/g, ''),
@@ -189,22 +195,20 @@ router.post('/questions/bulk-upload', async (req, res) => {
           optionBImageUrl,
           optionCImageUrl,
           optionDImageUrl,
-          explanation
-        };
+          explanation,
+          explanationImageUrl
+        });
 
-        questions.push(questionData);
-
-        console.log(`✅ Processed line ${i + 1}: QuestionID ${questionId}`);
+        if ((i + 1) % 10 === 0) {
+          console.log(`✅ Processed ${i + 1}/${lines.length} questions`);
+        }
 
       } catch (error) {
         errors.push(`Line ${i + 1}: ${error.message}`);
-        console.error(`❌ Error on line ${i + 1}:`, error.message);
       }
     }
 
-    console.log(`📊 Processing complete:`);
-    console.log(`   Valid questions: ${questions.length}`);
-    console.log(`   Errors: ${errors.length}`);
+    console.log(`📊 Processing complete: Valid=${questions.length}, Errors=${errors.length}`);
 
     // Insert questions
     let insertedCount = 0;
@@ -214,15 +218,11 @@ router.post('/questions/bulk-upload', async (req, res) => {
         insertedCount = result.length;
         console.log(`✅ Inserted ${insertedCount} questions`);
       } catch (error) {
-        // Handle partial insertion
         if (error.insertedDocs) {
           insertedCount = error.insertedDocs.length;
-          console.log(`⚠️ Partial insertion: ${insertedCount} questions`);
-          
-          // Add write errors to errors array
           if (error.writeErrors) {
-            error.writeErrors.forEach((we, idx) => {
-              errors.push(`Question ${idx + 1}: ${we.errmsg}`);
+            error.writeErrors.forEach((we) => {
+              errors.push(`Insert error: ${we.errmsg}`);
             });
           }
         } else {

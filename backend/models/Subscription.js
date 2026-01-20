@@ -8,8 +8,8 @@ const subscriptionSchema = new mongoose.Schema({
   },
   exam: {
     type: String,
-    enum: ['jee', 'neet'],
-    required: true
+    enum: ['jee', 'neet', null],
+    default: null
   },
   subscription: {
     type: String,

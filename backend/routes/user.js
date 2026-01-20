@@ -159,11 +159,9 @@ router.post('/update-details', authenticate, async (req, res) => {
 
     console.log('📝 POST /api/user/update-details');
     console.log('User:', req.user.userId);
-    console.log('Data received:', { name, profession, grade, exam, collegeName, state, lifeAmbition });
 
-    // Validate required fields
+    // Validate
     if (!name || !name.trim()) {
-      console.log('❌ Validation failed: Name is required');
       return res.status(400).json({
         success: false,
         message: 'Name is required'
@@ -171,23 +169,20 @@ router.post('/update-details', authenticate, async (req, res) => {
     }
 
     if (!profession || !['student', 'teacher'].includes(profession)) {
-      console.log('❌ Validation failed: Invalid profession');
       return res.status(400).json({
         success: false,
-        message: 'Valid profession is required (student or teacher)'
+        message: 'Valid profession is required'
       });
     }
 
     if (!exam || !['jee', 'neet'].includes(exam)) {
-      console.log('❌ Validation failed: Invalid exam');
       return res.status(400).json({
         success: false,
-        message: 'Valid exam type is required (jee or neet)'
+        message: 'Valid exam type is required'
       });
     }
 
     if (profession === 'student' && !grade) {
-      console.log('❌ Validation failed: Grade required for students');
       return res.status(400).json({
         success: false,
         message: 'Grade is required for students'
@@ -195,7 +190,6 @@ router.post('/update-details', authenticate, async (req, res) => {
     }
 
     if (!state || !state.trim()) {
-      console.log('❌ Validation failed: State is required');
       return res.status(400).json({
         success: false,
         message: 'State is required'
@@ -205,14 +199,11 @@ router.post('/update-details', authenticate, async (req, res) => {
     const userData = await UserData.findOne({ userId: req.user.userId });
 
     if (!userData) {
-      console.log('❌ UserData not found for user:', req.user.userId);
       return res.status(404).json({
         success: false,
         message: 'User data not found'
       });
     }
-
-    console.log('📝 Updating user details...');
 
     // Update user details
     userData.name = name.trim();
@@ -226,15 +217,41 @@ router.post('/update-details', authenticate, async (req, res) => {
 
     await userData.save();
 
-    console.log('✅ User details saved successfully');
+    // CREATE OR UPDATE SUBSCRIPTION
+    let subscription = await Subscription.findOne({ userId: req.user.userId });
+    
+    if (!subscription) {
+      subscription = await Subscription.create({
+        userId: req.user.userId,
+        exam: exam,
+        subscription: 'free',
+        subscriptionType: 'original',
+        subscriptionStartTime: new Date(),
+        subscriptionEndTime: null,
+        subscriptionStatus: 'active'
+      });
+      console.log('✅ Subscription created');
+    } else {
+      subscription.exam = exam;
+      await subscription.save();
+      console.log('✅ Subscription updated');
+    }
 
-    // Update subscription exam
-    await Subscription.updateOne(
-      { userId: req.user.userId },
-      { exam: exam }
-    );
-
-    console.log('✅ Subscription exam updated');
+    // CREATE OR UPDATE LIMITS
+    let limits = await Limits.findOne({ userId: req.user.userId });
+    
+    if (!limits) {
+      limits = await Limits.create({
+        userId: req.user.userId,
+        subscription: 'free',
+        questionCount: 0,
+        chapterTestCount: 0,
+        mockTestCount: 0,
+        ticketCount: 0,
+        limitResetTime: getNextResetTime()
+      });
+      console.log('✅ Limits created');
+    }
 
     res.status(200).json({
       success: true,

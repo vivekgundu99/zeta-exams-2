@@ -197,34 +197,6 @@ router.post('/register', async (req, res) => {
 
     console.log('✅ User data created');
 
-    // Create free subscription
-    await Subscription.create({
-      userId,
-      exam: null,
-      subscription: 'free',
-      subscriptionType: 'original',
-      subscriptionStatus: 'active'
-    });
-
-    console.log('✅ Subscription created');
-
-    // Create limits
-    await Limits.create({
-      userId,
-      subscription: 'free',
-      questionCount: 0,
-      chapterTestCount: 0,
-      mockTestCount: 0,
-      ticketCount: 0,
-      questionCountLimitReached: false,
-      chapterTestCountLimitReached: false,
-      mockTestCountLimitReached: false,
-      ticketCountLimitReached: false,
-      limitResetTime: getNextResetTime()
-    });
-
-    console.log('✅ Limits created');
-
     // Mark OTP as used
     otpRecord.isUsed = true;
     await otpRecord.save();
@@ -238,7 +210,7 @@ router.post('/register', async (req, res) => {
 
     console.log('🎉 Registration completed successfully!');
 
-    // Return success response
+    // Return success response - No subscription or limits creation
     return res.status(201).json({
       success: true,
       message: 'Registration successful',
@@ -255,12 +227,10 @@ router.post('/register', async (req, res) => {
     console.error('💥 REGISTRATION ERROR:', error);
     console.error('Error stack:', error.stack);
     
-    // Send detailed error response
     return res.status(500).json({
       success: false,
       message: 'Server error during registration',
-      error: process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message,
-      details: process.env.NODE_ENV === 'production' ? undefined : error.stack
+      error: process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message
     });
   }
 });

@@ -14,6 +14,8 @@ router.post('/generate-chapter-test', authenticate, async (req, res) => {
   try {
     const { examType, subject, chapter } = req.body;
 
+    console.log('🎯 Generate chapter test:', { examType, subject, chapter });
+
     if (!examType || !subject || !chapter) {
       return res.status(400).json({
         success: false,
@@ -21,17 +23,29 @@ router.post('/generate-chapter-test', authenticate, async (req, res) => {
       });
     }
 
-    // Check and reset limits if needed
-    const limits = await Limits.findOne({ userId: req.user.userId });
+    // Check limits
+    let limits = await Limits.findOne({ userId: req.user.userId });
     
-    if (limits && needsLimitReset(limits.limitResetTime)) {
+    if (!limits) {
+      const subscription = await Subscription.findOne({ userId: req.user.userId });
+      limits = await Limits.create({
+        userId: req.user.userId,
+        subscription: subscription?.subscription || 'free',
+        questionCount: 0,
+        chapterTestCount: 0,
+        mockTestCount: 0,
+        ticketCount: 0,
+        limitResetTime: getNextResetTime()
+      });
+    }
+
+    if (needsLimitReset(limits.limitResetTime)) {
       limits.chapterTestCount = 0;
       limits.chapterTestCountLimitReached = false;
       limits.limitResetTime = getNextResetTime();
       await limits.save();
     }
 
-    // Check chapter test limit
     const limitStatus = limits.checkLimits();
     if (limitStatus.chapterTests.reached) {
       return res.status(403).json({
@@ -41,27 +55,31 @@ router.post('/generate-chapter-test', authenticate, async (req, res) => {
       });
     }
 
-    // Get all questions from the chapter
+    // Get questions
     const questions = await Question.find({
       examType,
-      subject: new RegExp(subject, 'i'),
-      chapter: new RegExp(chapter, 'i')
+      subject: new RegExp(`^${subject}$`, 'i'),
+      chapter: new RegExp(`^${chapter}$`, 'i')
     });
+
+    console.log(`📚 Found ${questions.length} questions`);
 
     if (questions.length < 10) {
       return res.status(400).json({
         success: false,
-        message: 'Not enough questions in this chapter to generate a test'
+        message: `Not enough questions. Found ${questions.length}, need 10`
       });
     }
 
-    // Shuffle and pick 10 random questions
+    // Shuffle and pick 10
     const shuffled = questions.sort(() => 0.5 - Math.random());
     const testQuestions = shuffled.slice(0, 10);
 
-    // Increment chapter test count
+    // Increment counter
     limits.chapterTestCount += 1;
     await limits.save();
+
+    console.log('✅ Test generated successfully');
 
     res.json({
       success: true,
@@ -74,7 +92,7 @@ router.post('/generate-chapter-test', authenticate, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Generate chapter test error:', error);
+    console.error('💥 Generate test error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
@@ -86,10 +104,11 @@ router.post('/generate-chapter-test', authenticate, async (req, res) => {
 // @route   POST /api/tests/submit-chapter-test
 // @desc    Submit chapter test and get results
 // @access  Private
-// Replace the submit-chapter-test route with this:
 router.post('/submit-chapter-test', authenticate, async (req, res) => {
   try {
     const { answers } = req.body;
+
+    console.log('📝 Submit chapter test:', { answersCount: answers?.length });
 
     if (!answers || !Array.isArray(answers)) {
       return res.status(400).json({
@@ -118,7 +137,7 @@ router.post('/submit-chapter-test', authenticate, async (req, res) => {
           explanationImageUrl: question.explanationImageUrl
         });
 
-        // Update analytics for Gold users
+        // Update analytics
         const subscription = await Subscription.findOne({ userId: req.user.userId });
         
         if (subscription && subscription.subscription === 'gold') {
@@ -140,9 +159,7 @@ router.post('/submit-chapter-test', authenticate, async (req, res) => {
             isCorrect
           );
           
-          // FIX: Increment chapter test count
           analytics.overallStats.totalChapterTests += 1;
-          
           await analytics.save();
         }
       }
@@ -150,6 +167,8 @@ router.post('/submit-chapter-test', authenticate, async (req, res) => {
 
     const score = correctCount;
     const accuracy = ((correctCount / answers.length) * 100).toFixed(2);
+
+    console.log('✅ Test submitted:', { score, accuracy });
 
     res.json({
       success: true,
@@ -164,7 +183,7 @@ router.post('/submit-chapter-test', authenticate, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Submit chapter test error:', error);
+    console.error('💥 Submit test error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
