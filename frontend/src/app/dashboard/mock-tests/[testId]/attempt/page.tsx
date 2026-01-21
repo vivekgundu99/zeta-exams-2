@@ -5,14 +5,10 @@ import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
+import LatexRenderer from '@/components/ui/LatexRenderer';
 import { mockTestsAPI } from '@/lib/api';
 
-/* ✅ FIX: strict status union */
-type QuestionStatus =
-  | 'unanswered'
-  | 'answered'
-  | 'flagged'
-  | 'answered-flagged';
+type QuestionStatus = 'unanswered' | 'answered' | 'flagged' | 'answered-flagged';
 
 export default function MockTestAttemptPage() {
   const params = useParams();
@@ -26,6 +22,18 @@ export default function MockTestAttemptPage() {
   const [timeLeft, setTimeLeft] = useState(0);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+
+  // JEE Numerical tracking
+  const [numericalSections, setNumericalSections] = useState<{
+    physics: number[];
+    chemistry: number[];
+    mathematics: number[];
+  }>({
+    physics: [],
+    chemistry: [],
+    mathematics: []
+  });
 
   useEffect(() => {
     startTest();
@@ -47,6 +55,17 @@ export default function MockTestAttemptPage() {
     return () => clearInterval(timer);
   }, [timeLeft]);
 
+  // Prevent accidental navigation
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
   const startTest = async () => {
     try {
       const response = await mockTestsAPI.startTest(params.testId as string);
@@ -65,6 +84,26 @@ export default function MockTestAttemptPage() {
           })
         );
 
+        // Identify numerical sections for JEE
+        if (testData.examType === 'jee') {
+          const sections = {
+            physics: [] as number[],
+            chemistry: [] as number[],
+            mathematics: [] as number[]
+          };
+
+          testData.questions.forEach((q: any, i: number) => {
+            if (q.questionType === 'N') {
+              const subject = q.subject.toLowerCase();
+              if (subject === 'physics') sections.physics.push(i);
+              else if (subject === 'chemistry') sections.chemistry.push(i);
+              else if (subject === 'mathematics') sections.mathematics.push(i);
+            }
+          });
+
+          setNumericalSections(sections);
+        }
+
         toast.success('Test started! All questions loaded.');
       }
     } catch (error: any) {
@@ -76,7 +115,10 @@ export default function MockTestAttemptPage() {
   };
 
   const handleSubmit = async () => {
+    if (submitting) return;
+
     try {
+      setSubmitting(true);
       const response = await mockTestsAPI.submitTest(attemptId, answers);
 
       if (response.data.success) {
@@ -85,7 +127,51 @@ export default function MockTestAttemptPage() {
       }
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to submit test');
+      setSubmitting(false);
     }
+  };
+
+  const canAnswerNumerical = (questionIndex: number): boolean => {
+    if (!test || test.examType !== 'jee') return true;
+
+    const question = test.questions[questionIndex];
+    if (question.questionType !== 'N') return true;
+
+    const subject = question.subject.toLowerCase();
+    let sectionIndices: number[] = [];
+
+    if (subject === 'physics') sectionIndices = numericalSections.physics;
+    else if (subject === 'chemistry') sectionIndices = numericalSections.chemistry;
+    else if (subject === 'mathematics') sectionIndices = numericalSections.mathematics;
+
+    // Count answered numericals in this section
+    const answeredInSection = sectionIndices.filter(i => answers[i]?.answer).length;
+
+    // If already answered 5, check if current question is one of them
+    if (answeredInSection >= 5) {
+      return !!answers[questionIndex]?.answer;
+    }
+
+    return true;
+  };
+
+  const handleAnswerChange = (value: string) => {
+    const questionIndex = currentQuestion;
+
+    // Check numerical limit for JEE
+    if (test?.examType === 'jee' && test.questions[questionIndex].questionType === 'N') {
+      if (!canAnswerNumerical(questionIndex) && !answers[questionIndex]?.answer) {
+        toast.error('Maximum 5 numerical questions can be attempted in this section. Clear an answer to attempt more.');
+        return;
+      }
+    }
+
+    const newAnswers = [...answers];
+    newAnswers[questionIndex] = {
+      answer: value,
+      timeTaken: test.duration * 60 - timeLeft,
+    };
+    setAnswers(newAnswers);
   };
 
   const formatTime = (seconds: number) => {
@@ -98,7 +184,6 @@ export default function MockTestAttemptPage() {
       .padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  /* ✅ FIX: explicit return type */
   const getQuestionStatus = (index: number): QuestionStatus => {
     if (flagged.includes(index)) {
       return answers[index]?.answer ? 'answered-flagged' : 'flagged';
@@ -106,7 +191,6 @@ export default function MockTestAttemptPage() {
     return answers[index]?.answer ? 'answered' : 'unanswered';
   };
 
-  /* ✅ FIX: safe indexing */
   const getStatusColor = (status: QuestionStatus) => {
     const colors: Record<QuestionStatus, string> = {
       unanswered: 'bg-gray-200 text-gray-700',
@@ -129,6 +213,7 @@ export default function MockTestAttemptPage() {
   if (!test) return null;
 
   const question = test.questions[currentQuestion];
+  const canAnswer = canAnswerNumerical(currentQuestion);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -153,6 +238,7 @@ export default function MockTestAttemptPage() {
             <Button
               variant="danger"
               onClick={() => setShowSubmitModal(true)}
+              disabled={submitting}
             >
               Submit Test
             </Button>
@@ -211,7 +297,7 @@ export default function MockTestAttemptPage() {
                 </div>
 
                 <div className="text-lg font-medium text-gray-900 mb-4">
-                  {question.question}
+                  <LatexRenderer text={question.question} />
                 </div>
 
                 {question.questionImageUrl && (
@@ -222,6 +308,18 @@ export default function MockTestAttemptPage() {
                   />
                 )}
               </div>
+
+              {/* Numerical Limit Warning */}
+              {!canAnswer && (
+                <div className="mb-4 p-4 bg-yellow-50 border-2 border-yellow-400 rounded-lg">
+                  <p className="text-yellow-900 font-semibold">
+                    ⚠️ Maximum 5 numerical questions can be attempted in {question.subject}
+                  </p>
+                  <p className="text-sm text-yellow-800">
+                    Clear an existing answer to attempt this question
+                  </p>
+                </div>
+              )}
 
               {/* Answer Options */}
               <div className="space-y-3 mb-6">
@@ -242,19 +340,11 @@ export default function MockTestAttemptPage() {
                         checked={
                           answers[currentQuestion]?.answer === option
                         }
-                        onChange={(e) => {
-                          const newAnswers = [...answers];
-                          newAnswers[currentQuestion] = {
-                            answer: e.target.value,
-                            timeTaken:
-                              test.duration * 60 - timeLeft,
-                          };
-                          setAnswers(newAnswers);
-                        }}
+                        onChange={(e) => handleAnswerChange(e.target.value)}
                         className="mr-3"
                       />
                       <div className="flex-1">
-                        {question[`option${option}`]}
+                        <LatexRenderer text={question[`option${option}`]} />
                       </div>
                     </label>
                   ))
@@ -262,18 +352,11 @@ export default function MockTestAttemptPage() {
                   <input
                     type="number"
                     step="0.01"
-                    placeholder="Enter your answer"
+                    placeholder={canAnswer ? "Enter your answer" : "Cannot attempt - limit reached"}
                     value={answers[currentQuestion]?.answer || ''}
-                    onChange={(e) => {
-                      const newAnswers = [...answers];
-                      newAnswers[currentQuestion] = {
-                        answer: e.target.value,
-                        timeTaken:
-                          test.duration * 60 - timeLeft,
-                      };
-                      setAnswers(newAnswers);
-                    }}
-                    className="w-full px-4 py-3 border-2 rounded-lg focus:border-purple-600 focus:outline-none text-lg"
+                    onChange={(e) => handleAnswerChange(e.target.value)}
+                    disabled={!canAnswer}
+                    className="w-full px-4 py-3 border-2 rounded-lg focus:border-purple-600 focus:outline-none text-lg disabled:bg-gray-100 disabled:cursor-not-allowed"
                   />
                 )}
               </div>
@@ -358,6 +441,7 @@ export default function MockTestAttemptPage() {
               variant="outline"
               onClick={() => setShowSubmitModal(false)}
               className="flex-1"
+              disabled={submitting}
             >
               Cancel
             </Button>
@@ -365,8 +449,9 @@ export default function MockTestAttemptPage() {
               variant="primary"
               onClick={handleSubmit}
               className="flex-1"
+              isLoading={submitting}
             >
-              Submit Test
+              {submitting ? 'Submitting...' : 'Submit Test'}
             </Button>
           </div>
         </div>

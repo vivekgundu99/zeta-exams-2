@@ -9,6 +9,8 @@ import Dropdown from '@/components/ui/Dropdown';
 import Loader from '@/components/ui/Loader';
 import { userAPI } from '@/lib/api';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://zeta-exams-backend-2.vercel.app';
+
 export default function FormulasPage() {
   const router = useRouter();
   const [subscription, setSubscription] = useState<any>(null);
@@ -23,6 +25,12 @@ export default function FormulasPage() {
     checkSubscription();
   }, []);
 
+  useEffect(() => {
+    if (examType && subscription?.subscription === 'gold') {
+      loadFormulas();
+    }
+  }, [examType, selectedSubject, selectedChapter]);
+
   const checkSubscription = async () => {
     try {
       const response = await userAPI.getProfile();
@@ -30,17 +38,13 @@ export default function FormulasPage() {
         setSubscription(response.data.subscription);
         setExamType(response.data.user.exam);
         
-        if (response.data.subscription.subscription !== 'gold') {
-          // Not gold subscriber
-          setLoading(false);
-          return;
+        if (response.data.subscription.subscription === 'gold') {
+          // Load subjects for gold users
+          const subjectsData = response.data.user.exam === 'jee'
+            ? ['Physics', 'Chemistry', 'Mathematics']
+            : ['Physics', 'Chemistry', 'Biology'];
+          setSubjects(subjectsData);
         }
-
-        // Load subjects for gold users
-        const subjectsData = response.data.user.exam === 'jee'
-          ? ['Physics', 'Chemistry', 'Mathematics']
-          : ['Physics', 'Chemistry', 'Biology'];
-        setSubjects(subjectsData);
       }
     } catch (error) {
       toast.error('Failed to load subscription details');
@@ -49,7 +53,52 @@ export default function FormulasPage() {
     }
   };
 
-  if (loading) {
+  const loadFormulas = async () => {
+    try {
+      setLoading(true);
+      
+      const token = localStorage.getItem('token');
+      if (!token) {
+        toast.error('Please login again');
+        return;
+      }
+
+      const params = new URLSearchParams();
+      if (examType) params.append('examType', examType);
+      if (selectedSubject) params.append('subject', selectedSubject);
+      if (selectedChapter) params.append('chapter', selectedChapter);
+
+      console.log('📖 Loading formulas with params:', params.toString());
+
+      const response = await fetch(`${API_URL}/api/formulas/list?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      
+      console.log('📖 Formulas response:', data);
+
+      if (data.success) {
+        setFormulas(data.formulas || []);
+        if (data.formulas.length === 0) {
+          toast.error('No formulas found for selected filters');
+        }
+      } else {
+        toast.error(data.message || 'Failed to load formulas');
+      }
+    } catch (error: any) {
+      console.error('💥 Load formulas error:', error);
+      toast.error('Failed to load formulas');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading && !subscription) {
     return (
       <div className="flex justify-center py-12">
         <Loader size="lg" text="Loading..." />
@@ -95,7 +144,10 @@ export default function FormulasPage() {
             <Dropdown
               label="Subject"
               value={selectedSubject}
-              onChange={(e) => setSelectedSubject(e.target.value)}
+              onChange={(e) => {
+                setSelectedSubject(e.target.value);
+                setSelectedChapter('');
+              }}
               options={[
                 { value: '', label: 'All Subjects' },
                 ...subjects.map((s) => ({ value: s, label: s })),
@@ -112,7 +164,11 @@ export default function FormulasPage() {
             />
           </div>
 
-          {formulas.length === 0 ? (
+          {loading ? (
+            <div className="py-12 text-center">
+              <Loader size="md" text="Loading formulas..." />
+            </div>
+          ) : formulas.length === 0 ? (
             <div className="py-12 text-center">
               <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -136,6 +192,9 @@ export default function FormulasPage() {
                         <p className="text-xs text-gray-600">{formula.chapter}</p>
                       </div>
                     </div>
+                    {formula.description && (
+                      <p className="text-sm text-gray-600 mb-3">{formula.description}</p>
+                    )}
                     <Button
                       size="sm"
                       fullWidth

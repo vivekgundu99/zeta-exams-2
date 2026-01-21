@@ -32,7 +32,7 @@ router.post('/create', authenticate, async (req, res) => {
       });
     }
 
-    // Check limits
+    // FIXED: Check limits and reset if needed
     let limits = await Limits.findOne({ userId: req.user.userId });
     
     if (!limits) {
@@ -47,12 +47,13 @@ router.post('/create', authenticate, async (req, res) => {
       });
     }
 
-    // Reset limits if needed
+    // FIXED: Reset ticket count if time has passed
     if (needsLimitReset(limits.limitResetTime)) {
+      console.log('🔄 Resetting ticket limits - new day');
       limits.questionCount = 0;
       limits.chapterTestCount = 0;
       limits.mockTestCount = 0;
-      limits.ticketCount = 0;
+      limits.ticketCount = 0; // RESET TICKET COUNT
       limits.ticketCountLimitReached = false;
       limits.limitResetTime = getNextResetTime();
       await limits.save();
@@ -139,7 +140,7 @@ router.post('/create', authenticate, async (req, res) => {
       }
     );
 
-    // Increment ticket count
+    // FIXED: Increment ticket count
     limits.ticketCount += 1;
     await limits.save();
 
@@ -275,10 +276,5 @@ router.post('/add-message', authenticate, async (req, res) => {
     });
   }
 });
-
-// @route   POST /api/tickets/request-refund
-// @desc    Request refund for a ticket (REMOVED - Admin only now)
-// @access  Private
-// This endpoint is removed - refunds are now admin-only
 
 module.exports = router;

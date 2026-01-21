@@ -10,12 +10,16 @@ router.get('/list', authenticate, checkSubscription('gold'), async (req, res) =>
   try {
     const { examType, subject, chapter } = req.query;
 
+    console.log('📖 Loading formulas:', { examType, subject, chapter });
+
     const query = {};
     if (examType) query.examType = examType;
     if (subject) query.subject = new RegExp(subject, 'i');
     if (chapter) query.chapter = new RegExp(chapter, 'i');
 
     const formulas = await Formula.find(query).sort({ subject: 1, chapter: 1 });
+
+    console.log('✅ Found formulas:', formulas.length);
 
     res.json({
       success: true,
@@ -24,7 +28,7 @@ router.get('/list', authenticate, checkSubscription('gold'), async (req, res) =>
     });
 
   } catch (error) {
-    console.error('Get formulas error:', error);
+    console.error('💥 Get formulas error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',

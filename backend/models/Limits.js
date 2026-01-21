@@ -73,13 +73,13 @@ limitsSchema.statics.getLimitsForSubscription = function(subscription) {
       questions: 200,
       chapterTests: 10,
       mockTests: 0,
-      tickets: 1  // 1 ticket per day
+      tickets: 1  // 1 ticket per day - FIXED: Daily reset
     },
     gold: {
       questions: 5000,
       chapterTests: 50,
       mockTests: 8,
-      tickets: 1  // 1 ticket per day
+      tickets: 1  // 1 ticket per day - FIXED: Daily reset
     }
   };
   return limits[subscription] || limits.free;

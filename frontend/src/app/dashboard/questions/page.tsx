@@ -7,6 +7,7 @@ import Card, { CardBody } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Dropdown from '@/components/ui/Dropdown';
 import Loader from '@/components/ui/Loader';
+import LatexRenderer from '@/components/ui/LatexRenderer';
 import { questionsAPI, userAPI } from '@/lib/api';
 
 export default function QuestionsPage() {
@@ -29,27 +30,19 @@ export default function QuestionsPage() {
   }, []);
 
   useEffect(() => {
-    if (examType) {
-      loadSubjects();
-    }
+    if (examType) loadSubjects();
   }, [examType]);
 
   useEffect(() => {
-    if (selectedSubject) {
-      loadChapters();
-    }
+    if (selectedSubject) loadChapters();
   }, [selectedSubject]);
 
   useEffect(() => {
-    if (selectedChapter) {
-      loadTopics();
-    }
+    if (selectedChapter) loadTopics();
   }, [selectedChapter]);
 
   useEffect(() => {
-    if (selectedTopic) {
-      loadQuestions();
-    }
+    if (selectedTopic) loadQuestions();
   }, [selectedTopic, currentPage]);
 
   const loadUserExam = async () => {
@@ -103,41 +96,39 @@ export default function QuestionsPage() {
     }
   };
 
-  // ADD THIS in the loadQuestions function after fetching questions:
-
-const loadQuestions = async () => {
-  try {
-    setLoading(true);
-    const response = await questionsAPI.getQuestions({
-      examType,
-      subject: selectedSubject,
-      chapter: selectedChapter,
-      topic: selectedTopic,
-      page: currentPage,
-      limit: 20
-    });
-
-    if (response.data.success) {
-      setQuestions(response.data.questions);
-      setTotalPages(response.data.totalPages || 1);
-      setTotal(response.data.total || 0);
-      
-      // NEW: Save questions list to sessionStorage for navigation
-      sessionStorage.setItem('questionsList', JSON.stringify(response.data.questions));
-      sessionStorage.setItem('questionsListParams', JSON.stringify({
+  const loadQuestions = async () => {
+    try {
+      setLoading(true);
+      const response = await questionsAPI.getQuestions({
         examType,
         subject: selectedSubject,
         chapter: selectedChapter,
         topic: selectedTopic,
-        page: currentPage.toString()
-      }));
+        page: currentPage,
+        limit: 20
+      });
+
+      if (response.data.success) {
+        setQuestions(response.data.questions);
+        setTotalPages(response.data.totalPages || 1);
+        setTotal(response.data.total || 0);
+        
+        // Save to session for navigation
+        sessionStorage.setItem('questionsList', JSON.stringify(response.data.questions));
+        sessionStorage.setItem('questionsListParams', JSON.stringify({
+          examType,
+          subject: selectedSubject,
+          chapter: selectedChapter,
+          topic: selectedTopic,
+          page: currentPage.toString()
+        }));
+      }
+    } catch (error) {
+      toast.error('Failed to load questions');
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    toast.error('Failed to load questions');
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const viewQuestion = (questionId: string) => {
     const params = new URLSearchParams({
@@ -163,6 +154,36 @@ const loadQuestions = async () => {
         Unattempted
       </span>
     );
+  };
+
+  const renderPaginationButtons = () => {
+    const buttons = [];
+    const maxButtons = 5;
+    
+    let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+    let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+    
+    if (endPage - startPage < maxButtons - 1) {
+      startPage = Math.max(1, endPage - maxButtons + 1);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      buttons.push(
+        <button
+          key={i}
+          onClick={() => setCurrentPage(i)}
+          className={`px-4 py-2 rounded-lg font-medium transition-all ${
+            i === currentPage
+              ? 'bg-purple-600 text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          {i}
+        </button>
+      );
+    }
+
+    return buttons;
   };
 
   return (
@@ -213,118 +234,88 @@ const loadQuestions = async () => {
         </CardBody>
       </Card>
 
-      {/* Questions List */}
+      {/* Questions Grid */}
       {loading ? (
         <div className="flex justify-center py-12">
           <Loader size="lg" text="Loading questions..." />
         </div>
       ) : questions.length > 0 ? (
-        <Card>
-          <CardBody>
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">
-                Questions ({total} total)
-              </h3>
-              <p className="text-sm text-gray-600">
-                Page {currentPage} of {totalPages} | Showing {questions.length} questions
-              </p>
-            </div>
+        <>
+          <div className="mb-4 text-sm text-gray-600">
+            Showing {questions.length} questions (Page {currentPage} of {totalPages} • Total: {total})
+          </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      #
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Question
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Type
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      ID
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Action
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {questions.map((question, index) => (
-                    <tr key={question.questionId} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                        {(currentPage - 1) * 20 + index + 1}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-900 max-w-md">
-                        <div className="truncate">
-                          {question.question.replace(/latex:/g, '').replace(/\$\$/g, '').substring(0, 100)}...
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span
-                          className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                            question.questionType === 'S'
-                              ? 'bg-blue-100 text-blue-700'
-                              : 'bg-green-100 text-green-700'
-                          }`}
-                        >
-                          {question.questionType === 'S' ? 'MCQ' : 'Numerical'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        {getStatusBadge(question.status)}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
-                        {question.questionId}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => viewQuestion(question.questionId)}
-                        >
-                          {question.status === 'attempted' ? 'Review' : 'Attempt'}
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          <div className="grid grid-cols-1 gap-4">
+            {questions.map((question, index) => (
+              <Card key={question.questionId} hover>
+                <CardBody className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <span className="text-lg font-bold text-purple-600">
+                        #{(currentPage - 1) * 20 + index + 1}
+                      </span>
+                      <span
+                        className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                          question.questionType === 'S'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-green-100 text-green-700'
+                        }`}
+                      >
+                        {question.questionType === 'S' ? 'MCQ' : 'Numerical'}
+                      </span>
+                      {getStatusBadge(question.status)}
+                    </div>
+                    <span className="text-xs text-gray-500 font-mono">
+                      ID: {question.questionId}
+                    </span>
+                  </div>
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="mt-6 flex items-center justify-between">
-                <p className="text-sm text-gray-600">
-                  Page {currentPage} of {totalPages}
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    Previous
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            )}
-          </CardBody>
-        </Card>
+                  <div className="mb-4 text-gray-900">
+                    <LatexRenderer text={question.question} />
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs text-gray-500">
+                      {question.subject} • {question.chapter} • {question.topic}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => viewQuestion(question.questionId)}
+                    >
+                      {question.status === 'attempted' ? 'Review' : 'Attempt'}
+                    </Button>
+                  </div>
+                </CardBody>
+              </Card>
+            ))}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-8">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+              >
+                ← Previous
+              </Button>
+              
+              {renderPaginationButtons()}
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Next →
+              </Button>
+            </div>
+          )}
+        </>
       ) : (
         !selectedTopic && (
           <Card>

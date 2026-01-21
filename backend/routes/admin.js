@@ -454,12 +454,14 @@ router.delete('/formulas/:id', async (req, res) => {
   }
 });
 
-// @route   POST /api/admin/mock-tests/create
-// @desc    Create a mock test
+// UPDATED: @route   POST /api/admin/mock-tests/create
+// @desc    Create a mock test (FIXED: Chapter/Topic can be empty)
 // @access  Admin
-router.post('/mock-tests/create', async (req, res) => {
+router.post('/mock-tests/create', authenticate, isAdmin, async (req, res) => {
   try {
     const { examType, testName, csvText } = req.body;
+
+    console.log('📝 Creating mock test:', testName);
 
     const lines = csvText.trim().split('\n');
     const questions = [];
@@ -467,11 +469,16 @@ router.post('/mock-tests/create', async (req, res) => {
     for (const line of lines) {
       const parts = parseCSVLine(line);
       
+      if (parts.length < 17) {
+        console.error('❌ Invalid line format:', parts.length, 'parts');
+        continue;
+      }
+      
       questions.push({
         questionType: parts[0],
         subject: parts[1],
-        chapter: parts[2],
-        topic: parts[3],
+        chapter: parts[2] || 'General', // Default if empty
+        topic: parts[3] || 'General',   // Default if empty
         question: parts[4],
         optionA: parts[5] || null,
         optionB: parts[6] || null,
@@ -483,7 +490,8 @@ router.post('/mock-tests/create', async (req, res) => {
         optionBImageUrl: parts[12] || null,
         optionCImageUrl: parts[13] || null,
         optionDImageUrl: parts[14] || null,
-        explanation: parts[15] || null
+        explanation: parts[15] || null,
+        explanationImageUrl: parts[16] || null
       });
     }
 
@@ -492,7 +500,7 @@ router.post('/mock-tests/create', async (req, res) => {
     if (questions.length !== requiredQuestions) {
       return res.status(400).json({
         success: false,
-        message: `Test must have exactly ${requiredQuestions} questions`
+        message: `Test must have exactly ${requiredQuestions} questions. Got ${questions.length}.`
       });
     }
 
@@ -507,6 +515,8 @@ router.post('/mock-tests/create', async (req, res) => {
       questions
     });
 
+    console.log('✅ Mock test created:', testId);
+
     res.status(201).json({
       success: true,
       message: 'Mock test created successfully',
@@ -518,7 +528,7 @@ router.post('/mock-tests/create', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Create mock test error:', error);
+    console.error('💥 Create mock test error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
@@ -1011,5 +1021,35 @@ router.get('/formulas/list', authenticate, isAdmin, async (req, res) => {
   }
 });
 
+// ADD THIS ROUTE TO backend/routes/admin.js
+
+// @route   GET /api/admin/mock-tests/list
+// @desc    Get all mock tests for admin
+// @access  Admin
+router.get('/mock-tests/list', authenticate, isAdmin, async (req, res) => {
+  try {
+    console.log('📋 Loading all mock tests for admin');
+
+    const tests = await MockTest.find()
+      .select('-questions') // Don't send questions in list
+      .sort({ createdAt: -1 });
+
+    console.log('✅ Found mock tests:', tests.length);
+
+    res.json({
+      success: true,
+      count: tests.length,
+      tests
+    });
+
+  } catch (error) {
+    console.error('💥 Get mock tests error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+});
 
 module.exports = router;

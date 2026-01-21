@@ -6,7 +6,8 @@ import Card, { CardBody } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Dropdown from '@/components/ui/Dropdown';
-import { adminAPI } from '@/lib/api';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://zeta-exams-backend-2.vercel.app';
 
 export default function AdminMockTestsPage() {
   const [tests, setTests] = useState<any[]>([]);
@@ -25,7 +26,7 @@ export default function AdminMockTestsPage() {
   const loadTests = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/mock-tests/admin/list', {
+      const response = await fetch(`${API_URL}/api/admin/mock-tests/list`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`,
         },
@@ -59,20 +60,27 @@ export default function AdminMockTestsPage() {
 
     try {
       setLoading(true);
-      const response = await adminAPI.createMockTest({
-        examType: formData.examType,
-        testName: formData.testName,
-        csvText: formData.csvText,
+      const response = await fetch(`${API_URL}/api/admin/mock-tests/create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify(formData),
       });
 
-      if (response.data.success) {
+      const data = await response.json();
+
+      if (data.success) {
         toast.success('Mock test created successfully!');
         setShowForm(false);
         setFormData({ examType: 'jee', testName: '', csvText: '' });
         loadTests();
+      } else {
+        toast.error(data.message || 'Failed to create test');
       }
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to create test');
+      toast.error('Failed to create test');
     } finally {
       setLoading(false);
     }
@@ -84,13 +92,22 @@ export default function AdminMockTestsPage() {
     }
 
     try {
-      const response = await adminAPI.deleteMockTest(testId);
-      if (response.data.success) {
+      const response = await fetch(`${API_URL}/api/admin/mock-tests/${testId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      const data = await response.json();
+      if (data.success) {
         toast.success('Mock test deleted successfully!');
         loadTests();
+      } else {
+        toast.error(data.message || 'Failed to delete test');
       }
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to delete test');
+      toast.error('Failed to delete test');
     }
   };
 
@@ -109,16 +126,28 @@ export default function AdminMockTestsPage() {
             <h3 className="font-semibold mb-4">Create New Mock Test</h3>
             
             <div className="bg-blue-50 p-4 rounded-lg text-sm mb-6">
-              <p className="font-semibold text-blue-900 mb-2">CSV Format:</p>
-              <p className="text-blue-800 mb-2">
-                <strong>JEE:</strong> 90 questions (30 Physics + 30 Chemistry + 30 Maths)
-              </p>
-              <p className="text-blue-800 mb-2">
-                <strong>NEET:</strong> 180 questions (45 Physics + 45 Chemistry + 90 Biology)
-              </p>
-              <p className="text-blue-700 text-xs mt-2">
-                Use same format as question upload: Type#Subject#Chapter#Topic#Question#OptA#OptB#OptC#OptD#Answer#Images#Explanation
-              </p>
+              <p className="font-semibold text-blue-900 mb-2">CSV Format Guide:</p>
+              <div className="space-y-2 text-blue-800">
+                <p><strong>JEE:</strong> 90 questions (30 Physics + 30 Chemistry + 30 Maths)</p>
+                <p><strong>NEET:</strong> 180 questions (45 Physics + 45 Chemistry + 90 Biology)</p>
+                <p className="mt-3"><strong>Format:</strong></p>
+                <p className="font-mono text-xs bg-white p-2 rounded">
+                  Type#Subject#Chapter#Topic#Question#OptA#OptB#OptC#OptD#Answer#QImg#AImg#BImg#CImg#DImg#Explanation#ExpImg
+                </p>
+                <p className="mt-2"><strong>Important:</strong></p>
+                <ul className="list-disc list-inside space-y-1">
+                  <li>Chapter and Topic can be EMPTY (use ##)</li>
+                  <li>MCQ: Type=S, provide all 4 options</li>
+                  <li>Numerical: Type=N, leave options empty (#####)</li>
+                </ul>
+                <p className="mt-2"><strong>Examples:</strong></p>
+                <p className="font-mono text-xs bg-white p-2 rounded">
+                  S#Physics##Topic1#Question?#OptA#OptB#OptC#OptD#A#img####Explanation#
+                </p>
+                <p className="font-mono text-xs bg-white p-2 rounded">
+                  N#Chemistry##Topic2#Question?#####42.5#img#####Explanation#
+                </p>
+              </div>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">

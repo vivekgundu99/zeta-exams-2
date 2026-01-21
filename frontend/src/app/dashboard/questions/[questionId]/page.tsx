@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import Button from '@/components/ui/Button';
 import Card, { CardBody } from '@/components/ui/Card';
@@ -11,15 +11,12 @@ import LatexRenderer from '@/components/ui/LatexRenderer';
 export default function QuestionViewerPage() {
   const params = useParams();
   const router = useRouter();
-  const searchParams = useSearchParams();
   
   const [question, setQuestion] = useState<any>(null);
   const [selectedAnswer, setSelectedAnswer] = useState('');
   const [showResult, setShowResult] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-
-  // NEW: Question list navigation state
   const [questionsList, setQuestionsList] = useState<any[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [listParams, setListParams] = useState<any>(null);
@@ -29,7 +26,6 @@ export default function QuestionViewerPage() {
     loadQuestion();
   }, [params.questionId]);
 
-  // NEW: Load questions list from sessionStorage
   const loadQuestionsList = () => {
     try {
       const savedList = sessionStorage.getItem('questionsList');
@@ -39,7 +35,6 @@ export default function QuestionViewerPage() {
         const list = JSON.parse(savedList);
         setQuestionsList(list);
         
-        // Find current question index
         const index = list.findIndex((q: any) => q.questionId === params.questionId);
         if (index !== -1) {
           setCurrentIndex(index);
@@ -61,7 +56,6 @@ export default function QuestionViewerPage() {
         const q = response.data.question;
         setQuestion(q);
         
-        // If question was already attempted, load the previous answer
         if (q.attempted && q.userAnswer) {
           setSelectedAnswer(q.userAnswer);
         } else {
@@ -100,14 +94,12 @@ export default function QuestionViewerPage() {
     }
   };
 
-  // NEW: Navigate to specific question by index
   const navigateToQuestion = (index: number) => {
     if (index < 0 || index >= questionsList.length) return;
     
     const targetQuestion = questionsList[index];
     if (!targetQuestion) return;
 
-    // Build URL with preserved query params
     const params = new URLSearchParams();
     if (listParams?.examType) params.set('examType', listParams.examType);
     if (listParams?.subject) params.set('subject', listParams.subject);
@@ -118,7 +110,6 @@ export default function QuestionViewerPage() {
     router.push(`/dashboard/questions/${targetQuestion.questionId}?${params.toString()}`);
   };
 
-  // NEW: Go back to questions list
   const backToList = () => {
     if (listParams) {
       const params = new URLSearchParams(listParams);
@@ -133,7 +124,6 @@ export default function QuestionViewerPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      {/* Navigation Header */}
       <div className="flex items-center justify-between">
         <Button variant="outline" onClick={backToList}>
           ← Back to Questions
@@ -187,43 +177,62 @@ export default function QuestionViewerPage() {
             )}
           </div>
 
-          {!showResult && (
-            <div className="space-y-3 mb-6">
-              {question.questionType === 'S' ? (
-                ['A', 'B', 'C', 'D'].map((option) => (
+          {/* FIXED: Always show options, even after submission */}
+          <div className="space-y-3 mb-6">
+            {question.questionType === 'S' ? (
+              ['A', 'B', 'C', 'D'].map((option) => {
+                const isSelected = selectedAnswer === option;
+                const isCorrect = showResult && result?.correctAnswer === option;
+                const isWrong = showResult && isSelected && !result?.isCorrect;
+                
+                return (
                   <label
                     key={option}
-                    className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                      selectedAnswer === option
+                    className={`flex items-center p-4 border-2 rounded-lg transition-all ${
+                      showResult
+                        ? isCorrect
+                          ? 'border-green-500 bg-green-50'
+                          : isWrong
+                          ? 'border-red-500 bg-red-50'
+                          : 'border-gray-200'
+                        : isSelected
                         ? 'border-purple-600 bg-purple-50'
-                        : 'border-gray-200 hover:border-purple-300'
+                        : 'border-gray-200 hover:border-purple-300 cursor-pointer'
                     }`}
                   >
-                    <input
-                      type="radio"
-                      name="answer"
-                      value={option}
-                      checked={selectedAnswer === option}
-                      onChange={(e) => setSelectedAnswer(e.target.value)}
-                      className="mr-3"
-                    />
+                    {!showResult && (
+                      <input
+                        type="radio"
+                        name="answer"
+                        value={option}
+                        checked={isSelected}
+                        onChange={(e) => setSelectedAnswer(e.target.value)}
+                        className="mr-3"
+                      />
+                    )}
+                    {showResult && (
+                      <span className="mr-3 font-bold">
+                        {isCorrect ? '✓' : isWrong ? '✗' : ' '}
+                      </span>
+                    )}
                     <div className="flex-1">
                       <LatexRenderer text={question[`option${option}`]} />
                     </div>
                   </label>
-                ))
-              ) : (
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="Enter your answer"
-                  value={selectedAnswer}
-                  onChange={(e) => setSelectedAnswer(e.target.value)}
-                  className="w-full px-4 py-3 border-2 rounded-lg focus:border-purple-600 focus:outline-none"
-                />
-              )}
-            </div>
-          )}
+                );
+              })
+            ) : (
+              <input
+                type="number"
+                step="0.01"
+                placeholder="Enter your answer"
+                value={selectedAnswer}
+                onChange={(e) => setSelectedAnswer(e.target.value)}
+                disabled={showResult}
+                className="w-full px-4 py-3 border-2 rounded-lg focus:border-purple-600 focus:outline-none disabled:bg-gray-100"
+              />
+            )}
+          </div>
 
           {showResult && (
             <>
@@ -259,7 +268,6 @@ export default function QuestionViewerPage() {
             </>
           )}
 
-          {/* Navigation Buttons */}
           <div className="flex gap-3 mt-6">
             {questionsList.length > 0 ? (
               <>
@@ -300,7 +308,6 @@ export default function QuestionViewerPage() {
             )}
           </div>
 
-          {/* Question Navigator Grid */}
           {questionsList.length > 0 && (
             <div className="mt-8 pt-6 border-t">
               <p className="text-sm font-medium text-gray-700 mb-3">Quick Navigation:</p>
