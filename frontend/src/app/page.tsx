@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { toast } from 'react-hot-toast';
@@ -27,6 +27,25 @@ export default function LoginPage() {
     getValues,
   } = useForm<LoginFormData>();
 
+  // Check if already logged in
+  useEffect(() => {
+    const token = storage.get('token');
+    const user = storage.get('user');
+    const isAdminStored = storage.get('isAdmin');
+    
+    if (token && user) {
+      if (isAdminStored) {
+        router.push('/admin');
+      } else if (!user.userDetails) {
+        router.push('/user-details');
+      } else if (!user.exam) {
+        router.push('/select-exam');
+      } else {
+        router.push('/dashboard');
+      }
+    }
+  }, [router]);
+
   const onSubmit = async (data: LoginFormData) => {
     try {
       setIsLoading(true);
@@ -37,8 +56,9 @@ export default function LoginPage() {
       });
 
       if (response.data.success) {
-        // Store token and user data
-        storage.set('token', response.data.token);
+        // CRITICAL FIX: Store token directly without JSON.stringify
+        const token = response.data.token;
+        storage.set('token', token); // Now stores as plain string
         storage.set('isAdmin', response.data.isAdmin || false);
         
         if (response.data.user) {

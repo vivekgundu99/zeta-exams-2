@@ -55,13 +55,16 @@ const generateToken = (userId, email, isAdmin = false) => {
 // Verify JWT Token
 const verifyToken = (token) => {
   try {
-    console.log('🔍 Verifying token:', token.substring(0, 20) + '...');
+    // Clean the token - remove quotes if present
+    const cleanToken = token.trim().replace(/^["']|["']$/g, '');
     
-    if (!token) {
+    console.log('🔍 Verifying token:', cleanToken.substring(0, 20) + '...');
+    
+    if (!cleanToken) {
       throw new Error('Token is empty or undefined');
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(cleanToken, JWT_SECRET);
     
     console.log('✅ Token verified successfully:', {
       userId: decoded.userId,

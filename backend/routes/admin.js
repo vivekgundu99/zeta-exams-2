@@ -89,11 +89,24 @@ router.get('/dashboard/stats', async (req, res) => {
 // @access  Admin
 router.post('/questions/bulk-upload', async (req, res) => {
   try {
+    console.log('📤 BULK UPLOAD REQUEST STARTED');
+    console.log('User:', req.user);
+    console.log('Body keys:', Object.keys(req.body));
+    
     const { csvText, examType } = req.body;
+
+    if (!csvText || !examType) {
+      console.log('❌ Missing required fields');
+      return res.status(400).json({
+        success: false,
+        message: 'CSV text and exam type are required'
+      });
+    }
 
     console.log('📤 Bulk upload request:', {
       examType,
-      linesCount: csvText ? csvText.split('\n').length : 0
+      linesCount: csvText.split('\n').filter(l => l.trim()).length,
+      firstLine: csvText.split('\n')[0]?.substring(0, 50)
     });
 
     if (!csvText || !examType) {

@@ -18,14 +18,32 @@ api.interceptors.request.use(
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('token');
       
-      // FIX: Ensure token is valid before adding to headers
+      // FIX: Enhanced token validation and cleaning
       if (token && token !== 'null' && token !== 'undefined' && token.trim() !== '') {
-        // FIX: Clean the token - remove any quotes or extra whitespace
-        const cleanToken = token.replace(/^["']|["']$/g, '').trim();
-        
-        config.headers.Authorization = `Bearer ${cleanToken}`;
-        console.log('✅ Request with token to:', config.url);
-        console.log('   Token preview:', cleanToken.substring(0, 20) + '...');
+        try {
+          // Remove any JSON parsing artifacts, quotes, or whitespace
+          let cleanToken = token.trim();
+          
+          // If token is JSON stringified, parse it
+          if (cleanToken.startsWith('"') && cleanToken.endsWith('"')) {
+            cleanToken = JSON.parse(cleanToken);
+          }
+          
+          // Remove any remaining quotes
+          cleanToken = cleanToken.replace(/^["']|["']$/g, '').trim();
+          
+          // Validate token format (should be a JWT-like string)
+          if (cleanToken && cleanToken.length > 20 && !cleanToken.includes(' ')) {
+            config.headers.Authorization = `Bearer ${cleanToken}`;
+            console.log('✅ Request with token to:', config.url);
+          } else {
+            console.warn('⚠️ Invalid token format, removing from storage');
+            localStorage.removeItem('token');
+          }
+        } catch (error) {
+          console.error('❌ Token processing error:', error);
+          localStorage.removeItem('token');
+        }
       } else {
         console.log('⚠️ Request without token to:', config.url);
       }
@@ -40,21 +58,16 @@ api.interceptors.request.use(
 
 // Response interceptor for error handling
 api.interceptors.response.use(
-  (response) => {
-    console.log('✅ Response received from:', response.config.url, 'Status:', response.status);
-    return response;
-  },
+  (response) => response,
   (error) => {
     console.error('❌ API Error:', {
       url: error.config?.url,
       method: error.config?.method,
       status: error.response?.status,
       message: error.response?.data?.message || error.message,
-      data: error.response?.data
     });
 
     if (!error.response) {
-      console.error('🔴 Network error - no response received');
       return Promise.reject({
         response: {
           data: {
@@ -68,15 +81,15 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       const currentPath = window.location.pathname;
       
-      // Don't redirect if already on login/register pages
-      if (!currentPath.includes('/login') && !currentPath.includes('/register') && currentPath !== '/') {
-        console.log('🔴 401 error - clearing auth and redirecting to login');
+      if (!currentPath.includes('/login') && 
+          !currentPath.includes('/register') && 
+          currentPath !== '/' &&
+          currentPath !== '/forgot-password') {
         if (typeof window !== 'undefined') {
           localStorage.removeItem('token');
           localStorage.removeItem('user');
           localStorage.removeItem('isAdmin');
           
-          // Add a small delay to ensure storage is cleared
           setTimeout(() => {
             window.location.href = '/';
           }, 100);
@@ -116,7 +129,6 @@ export const userAPI = {
   getProfile: () =>
     api.get('/api/user/profile'),
   
-  // FIX: POST method as defined in backend
   updateDetails: (data: any) =>
     api.post('/api/user/update-details', data),
   
@@ -249,7 +261,6 @@ export const adminAPI = {
   closeTicket: (ticketNumber: string) =>
     api.post('/api/admin/tickets/close', { ticketNumber }),
   
-  // FIX: Add missing requestRefund method
   requestRefund: (ticketNumber: string) =>
     api.post('/api/admin/tickets/request-refund', { ticketNumber }),
   
@@ -257,7 +268,7 @@ export const adminAPI = {
     api.post('/api/admin/tickets/refund-eligible', { ticketNumber }),
   
   getRefunds: () =>
-    api.get('/api/admin/refunds'),
+    api.get('/api/admin/tickets?refundRequested=true'),
   
   processRefund: (ticketNumber: string) =>
     api.post('/api/admin/refunds/process', { ticketNumber }),

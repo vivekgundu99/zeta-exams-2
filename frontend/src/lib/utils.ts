@@ -1,12 +1,10 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
-// Tailwind class merger
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// States of India
 export const INDIAN_STATES = [
   'Andhra Pradesh',
   'Arunachal Pradesh',
@@ -40,7 +38,6 @@ export const INDIAN_STATES = [
   'Outside India',
 ] as const;
 
-// Format date
 export const formatDate = (date: string | Date) => {
   return new Date(date).toLocaleDateString('en-IN', {
     day: 'numeric',
@@ -49,7 +46,6 @@ export const formatDate = (date: string | Date) => {
   });
 };
 
-// Format time
 export const formatTime = (date: string | Date) => {
   return new Date(date).toLocaleTimeString('en-IN', {
     hour: '2-digit',
@@ -57,7 +53,6 @@ export const formatTime = (date: string | Date) => {
   });
 };
 
-// Format currency
 export const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
@@ -66,7 +61,6 @@ export const formatCurrency = (amount: number) => {
   }).format(amount);
 };
 
-// Calculate time remaining
 export const getTimeRemaining = (endDate: string | Date) => {
   const total = new Date(endDate).getTime() - new Date().getTime();
   const days = Math.floor(total / (1000 * 60 * 60 * 24));
@@ -77,31 +71,26 @@ export const getTimeRemaining = (endDate: string | Date) => {
   return { total, days, hours, minutes, seconds };
 };
 
-// Format seconds to MM:SS
 export const formatSeconds = (seconds: number) => {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 };
 
-// Calculate percentage
 export const calculatePercentage = (value: number, total: number) => {
   if (total === 0) return 0;
   return Math.round((value / total) * 100);
 };
 
-// Truncate text
 export const truncateText = (text: string, maxLength: number) => {
   if (text.length <= maxLength) return text;
   return text.substring(0, maxLength) + '...';
 };
 
-// Parse LaTeX in text
 export const parseLatex = (text: string) => {
   return text.replace(/latex:(.*?)(?=\s|$|,|\.|;)/g, '$$1$');
 };
 
-// Get plan features
 export const getPlanFeatures = (plan: 'free' | 'silver' | 'gold') => {
   const features = {
     free: {
@@ -129,7 +118,6 @@ export const getPlanFeatures = (plan: 'free' | 'silver' | 'gold') => {
   return features[plan];
 };
 
-// Get subscription duration label
 export const getDurationLabel = (duration: string) => {
   const labels: Record<string, string> = {
     '1month': '1 Month',
@@ -139,17 +127,14 @@ export const getDurationLabel = (duration: string) => {
   return labels[duration] || duration;
 };
 
-// Get exam label
 export const getExamLabel = (exam: string) => {
   return exam === 'jee' ? 'JEE Main' : 'NEET';
 };
 
-// Get question type label
 export const getQuestionTypeLabel = (type: string) => {
   return type === 'S' ? 'MCQ' : 'Numerical';
 };
 
-// Download file
 export const downloadFile = (url: string, filename: string) => {
   const link = document.createElement('a');
   link.href = url;
@@ -159,7 +144,6 @@ export const downloadFile = (url: string, filename: string) => {
   document.body.removeChild(link);
 };
 
-// Copy to clipboard
 export const copyToClipboard = async (text: string) => {
   try {
     await navigator.clipboard.writeText(text);
@@ -169,19 +153,16 @@ export const copyToClipboard = async (text: string) => {
   }
 };
 
-// Validate email
 export const isValidEmail = (email: string) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 };
 
-// Validate phone
 export const isValidPhone = (phone: string) => {
   const phoneRegex = /^[6-9]\d{9}$/;
   return phoneRegex.test(phone);
 };
 
-// Get greeting based on time
 export const getGreeting = () => {
   const hour = new Date().getHours();
   if (hour < 12) return 'Good Morning';
@@ -189,7 +170,6 @@ export const getGreeting = () => {
   return 'Good Evening';
 };
 
-// Get question status color
 export const getQuestionStatusColor = (status: string) => {
   const colors: Record<string, string> = {
     unanswered: 'bg-gray-200 text-gray-700',
@@ -201,7 +181,6 @@ export const getQuestionStatusColor = (status: string) => {
   return colors[status] || colors.unanswered;
 };
 
-// Debounce function
 export const debounce = <T extends (...args: any[]) => any>(
   func: T,
   wait: number
@@ -213,14 +192,21 @@ export const debounce = <T extends (...args: any[]) => any>(
   };
 };
 
-// FIX: Enhanced local storage helpers with better error handling
+// Enhanced storage with better error handling and token cleaning
 export const storage = {
   get: (key: string) => {
     if (typeof window === 'undefined') return null;
     try {
       const item = window.localStorage.getItem(key);
       if (!item || item === 'undefined' || item === 'null') return null;
-      return JSON.parse(item);
+      
+      // Try to parse as JSON
+      try {
+        return JSON.parse(item);
+      } catch {
+        // If not JSON, return as-is
+        return item;
+      }
     } catch (error) {
       console.error(`Storage get error for key "${key}":`, error);
       return null;
@@ -230,12 +216,19 @@ export const storage = {
   set: (key: string, value: any) => {
     if (typeof window === 'undefined') return;
     try {
-      // Don't store null or undefined
       if (value === null || value === undefined) {
         window.localStorage.removeItem(key);
         return;
       }
-      window.localStorage.setItem(key, JSON.stringify(value));
+      
+      // For strings that are already valid (like tokens), don't double-stringify
+      if (typeof value === 'string' && key === 'token') {
+        // Store token directly without JSON.stringify to avoid quote issues
+        window.localStorage.setItem(key, value);
+      } else {
+        window.localStorage.setItem(key, JSON.stringify(value));
+      }
+      
       console.log(`✅ Storage set: ${key}`);
     } catch (error) {
       console.error(`Storage set error for key "${key}":`, error);
@@ -252,7 +245,6 @@ export const storage = {
     }
   },
   
-  // FIX: Add clear method to remove all auth-related data
   clearAuth: () => {
     if (typeof window === 'undefined') return;
     try {

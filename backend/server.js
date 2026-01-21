@@ -68,11 +68,17 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
 // Request Logging
+// Request Logging
 app.use((req, res, next) => {
   const timestamp = new Date().toISOString();
   console.log(`[${timestamp}] ${req.method} ${req.path}`);
   if (req.headers.authorization) {
-    console.log('  → Has Authorization header:', req.headers.authorization.substring(0, 20) + '...');
+    const authPreview = req.headers.authorization.substring(0, 30);
+    console.log('  → Has Authorization header:', authPreview + '...');
+    // Check for quote issues
+    if (authPreview.includes('"') || authPreview.includes("'")) {
+      console.log('  ⚠️ WARNING: Authorization header contains quotes!');
+    }
   }
   next();
 });

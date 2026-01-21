@@ -21,8 +21,8 @@ const authenticate = async (req, res, next) => {
       });
     }
     
-    // FIX: Better token extraction - remove 'Bearer ' prefix and trim
-    const token = authHeader.replace('Bearer ', '').trim();
+    // FIX: Better token extraction - remove 'Bearer ' prefix, trim, and remove any quotes
+    const token = authHeader.replace('Bearer ', '').trim().replace(/^["']|["']$/g, '');
     
     // FIX: Check for invalid token values
     if (!token || token === 'null' || token === 'undefined' || token === '') {
