@@ -120,6 +120,17 @@ router.post('/verify', authenticate, async (req, res) => {
       }
     );
 
+    // In verifyPayment function, after updating subscription:
+    await Subscription.updateOne(
+      { userId: req.user.userId },
+      {
+        subscription: payment.subscriptionPlan,
+        subscriptionType: 'original',  // 🔥 ALWAYS set to original for payments
+        subscriptionStartTime: new Date(),
+        subscriptionEndTime: endDate,
+        subscriptionStatus: 'active'
+      }
+    );
     // Update limits
     await Limits.updateOne(
       { userId: req.user.userId },

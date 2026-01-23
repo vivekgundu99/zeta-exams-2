@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Card, { CardBody } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { analyticsAPI, userAPI } from '@/lib/api';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 
 export default function AnalyticsPage() {
   const router = useRouter();
@@ -62,6 +62,14 @@ export default function AnalyticsPage() {
 
   const subjects = ['physics', 'chemistry', analytics?.mathematics ? 'mathematics' : 'biology'];
 
+  // 🔥 NEW: Prepare pie chart data
+  const accuracyData = subjects.map(subject => ({
+    name: subject.charAt(0).toUpperCase() + subject.slice(1),
+    value: parseFloat(analytics?.[subject]?.accuracy || 0)
+  }));
+
+  const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444'];
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">Performance Analytics</h1>
@@ -95,6 +103,33 @@ export default function AnalyticsPage() {
           </CardBody>
         </Card>
       </div>
+
+      {/* 🔥 NEW: Pie Chart - Subject-wise Accuracy */}
+      <Card>
+        <CardBody className="p-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-6">Subject-wise Accuracy Comparison</h2>
+          <ResponsiveContainer width="100%" height={400}>
+            <PieChart>
+              <Pie
+                data={accuracyData}
+                cx="50%"
+                cy="50%"
+                labelLine={false}
+                label={({ name, value }) => `${name}: ${value}%`}
+                outerRadius={120}
+                fill="#8884d8"
+                dataKey="value"
+              >
+                {accuracyData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        </CardBody>
+      </Card>
 
       {/* Subject-wise Performance */}
       {subjects.map((subject) => {

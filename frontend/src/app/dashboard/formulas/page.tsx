@@ -1,3 +1,4 @@
+// frontend/src/app/dashboard/formulas/page.tsx - FIXED
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -7,7 +8,7 @@ import Card, { CardBody } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Dropdown from '@/components/ui/Dropdown';
 import Loader from '@/components/ui/Loader';
-import { userAPI, questionsAPI } from '@/lib/api';
+import { userAPI } from '@/lib/api';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://zeta-exams-backend-2.vercel.app';
 
@@ -28,13 +29,13 @@ export default function FormulasPage() {
 
   useEffect(() => {
     if (examType && subscription?.subscription === 'gold') {
-      loadSubjects();
+      loadFormulaSubjects();
     }
   }, [examType]);
 
   useEffect(() => {
     if (selectedSubject) {
-      loadChapters();
+      loadFormulaChapters();
     }
   }, [selectedSubject]);
 
@@ -58,22 +59,61 @@ export default function FormulasPage() {
     }
   };
 
-  const loadSubjects = async () => {
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      toast.error('Please login again');
+      return null;
+    }
+    
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    };
+  };
+
+  // 🔥 FIXED: Load subjects from formulas, not questions
+  const loadFormulaSubjects = async () => {
     try {
-      const response = await questionsAPI.getSubjects(examType);
-      if (response.data.success) {
-        setSubjects(response.data.subjects);
+      const headers = getAuthHeaders();
+      if (!headers) return;
+
+      const response = await fetch(
+        `${API_URL}/api/formulas/list?examType=${examType}`,
+        { method: 'GET', headers }
+      );
+
+      const data = await response.json();
+      if (data.success && data.formulas) {
+        // Extract unique subjects from formulas
+        const uniqueSubjects = [...new Set(data.formulas.map((f: any) => f.subject))];
+        setSubjects(uniqueSubjects as string[]);
       }
     } catch (error) {
       console.error('Failed to load subjects');
     }
   };
 
-  const loadChapters = async () => {
+  // 🔥 FIXED: Load chapters from formulas, not questions
+  const loadFormulaChapters = async () => {
     try {
-      const response = await questionsAPI.getChapters(selectedSubject, examType);
-      if (response.data.success) {
-        setChapters(response.data.chapters);
+      const headers = getAuthHeaders();
+      if (!headers) return;
+
+      const params = new URLSearchParams();
+      if (examType) params.append('examType', examType);
+      if (selectedSubject) params.append('subject', selectedSubject);
+
+      const response = await fetch(
+        `${API_URL}/api/formulas/list?${params.toString()}`,
+        { method: 'GET', headers }
+      );
+
+      const data = await response.json();
+      if (data.success && data.formulas) {
+        // Extract unique chapters from formulas
+        const uniqueChapters = [...new Set(data.formulas.map((f: any) => f.chapter))];
+        setChapters(uniqueChapters as string[]);
         setSelectedChapter('');
       }
     } catch (error) {
@@ -84,10 +124,9 @@ export default function FormulasPage() {
   const loadFormulas = async () => {
     try {
       setLoading(true);
-      
-      const token = localStorage.getItem('token');
-      if (!token) {
-        toast.error('Please login again');
+      const headers = getAuthHeaders();
+      if (!headers) {
+        setLoading(false);
         return;
       }
 
@@ -98,10 +137,7 @@ export default function FormulasPage() {
 
       const response = await fetch(`${API_URL}/api/formulas/list?${params.toString()}`, {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+        headers,
       });
 
       const data = await response.json();

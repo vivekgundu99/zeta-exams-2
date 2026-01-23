@@ -1,18 +1,17 @@
+// backend/server.js - UPDATED with Limits Reset
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const cookieParser = require('cookie-parser');
 const connectDB = require('./config/database');
+const { scheduleDailyReset, autoResetLimits } = require('./middleware/limitsReset');
 require('dotenv').config();
 
-// Initialize Express App
 const app = express();
 
-// Connect to MongoDB
 connectDB();
 
-// Log environment status
 console.log('');
 console.log('🚀 ==========================================');
 console.log('🚀 ZETA EXAMS BACKEND - STARTING');
@@ -27,7 +26,6 @@ console.log('Frontend URL:', process.env.FRONTEND_URL || 'http://localhost:3000'
 console.log('🚀 ==========================================');
 console.log('');
 
-// Critical check
 if (!process.env.JWT_SECRET) {
   console.error('');
   console.error('🔴🔴🔴 FATAL ERROR 🔴🔴🔴');
@@ -36,22 +34,17 @@ if (!process.env.JWT_SECRET) {
   console.error('Please set it in Vercel environment variables');
   console.error('🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴');
   console.error('');
-  // Don't throw in production to allow health check
   if (process.env.NODE_ENV === 'production') {
     console.warn('⚠️ Running without JWT_SECRET - authentication will fail');
   }
 }
 
-// FIX: CRITICAL - Trust proxy for Vercel deployment
-// This must be set BEFORE any middleware that uses req.ip
 app.set('trust proxy', 1);
 console.log('✅ Trust proxy enabled for Vercel');
 
-// Security Middleware
 app.use(helmet());
 app.use(compression());
 
-// CORS Configuration
 const corsOptions = {
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   credentials: true,
@@ -62,20 +55,21 @@ const corsOptions = {
 console.log('🌐 CORS enabled for:', corsOptions.origin);
 app.use(cors(corsOptions));
 
-// Body Parser Middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
-// Request Logging
-// Request Logging
+// 🔥 NEW: Auto-reset limits middleware (applies to all routes)
+const { authenticate } = require('./middleware/auth');
+app.use(authenticate);
+app.use(autoResetLimits);
+
 app.use((req, res, next) => {
   const timestamp = new Date().toISOString();
   console.log(`[${timestamp}] ${req.method} ${req.path}`);
   if (req.headers.authorization) {
     const authPreview = req.headers.authorization.substring(0, 30);
     console.log('  → Has Authorization header:', authPreview + '...');
-    // Check for quote issues
     if (authPreview.includes('"') || authPreview.includes("'")) {
       console.log('  ⚠️ WARNING: Authorization header contains quotes!');
     }
@@ -83,7 +77,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// API Routes
 console.log('📍 Registering routes...');
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/user', require('./routes/user'));
@@ -99,7 +92,12 @@ app.use('/api/tickets', require('./routes/tickets'));
 app.use('/api/giftcodes', require('./routes/giftcodes'));
 console.log('✅ All routes registered');
 
-// Health Check Route
+// 🔥 NEW: Start daily limits reset scheduler
+if (process.env.NODE_ENV === 'production' || process.env.ENABLE_SCHEDULER === 'true') {
+  scheduleDailyReset();
+  console.log('✅ Daily limits reset scheduler started');
+}
+
 app.get('/api/health', (req, res) => {
   const health = {
     success: true,
@@ -111,14 +109,14 @@ app.get('/api/health', (req, res) => {
       jwtSecret: process.env.JWT_SECRET ? 'configured' : 'missing',
       resend: process.env.RESEND_API_KEY ? 'configured' : 'missing',
       razorpay: process.env.RAZORPAY_KEY_ID ? 'configured' : 'missing',
-      trustProxy: app.get('trust proxy') ? 'enabled' : 'disabled'
+      trustProxy: app.get('trust proxy') ? 'enabled' : 'disabled',
+      limitsScheduler: 'enabled'
     }
   };
   
   res.status(200).json(health);
 });
 
-// Root Route
 app.get('/', (req, res) => {
   res.json({
     success: true,
@@ -133,7 +131,6 @@ app.get('/', (req, res) => {
   });
 });
 
-// 404 Handler
 app.use((req, res) => {
   console.log('❌ 404 - Route not found:', req.method, req.path);
   res.status(404).json({
@@ -144,7 +141,6 @@ app.use((req, res) => {
   });
 });
 
-// Global Error Handler
 app.use((err, req, res, next) => {
   console.error('💥 Global error handler:', err);
   console.error('Stack:', err.stack);
@@ -159,7 +155,6 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start Server
 const PORT = process.env.PORT || 5000;
 
 if (process.env.NODE_ENV !== 'production') {
@@ -174,5 +169,4 @@ if (process.env.NODE_ENV !== 'production') {
   console.log('✅ Server configured for production (Vercel)');
 }
 
-// Export for Vercel
 module.exports = app;

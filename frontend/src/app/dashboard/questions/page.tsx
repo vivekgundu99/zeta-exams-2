@@ -103,7 +103,7 @@ export default function QuestionsPage() {
         examType,
         subject: selectedSubject,
         chapter: selectedChapter,
-        topic: selectedTopic,
+        topic: selectedTopic === 'ALL_TOPICS' ? '' : selectedTopic,  // 🔥 Send empty for all
         page: currentPage,
         limit: 20
       });
@@ -226,6 +226,7 @@ export default function QuestionsPage() {
               onChange={(e) => setSelectedTopic(e.target.value)}
               options={[
                 { value: '', label: selectedChapter ? 'Select Topic' : 'Select Chapter First' },
+                { value: 'ALL_TOPICS', label: '📚 All Topics' },  // 🔥 NEW
                 ...topics.map((t) => ({ value: t, label: t })),
               ]}
               disabled={!selectedChapter}

@@ -816,6 +816,7 @@ router.get('/tickets', authenticate, isAdmin, async (req, res) => {
           ...ticket.toObject(),
           subscriptionDetails: subscription ? {
             subscription: subscription.subscription,
+            subscriptionType: subscription.subscriptionType,
             subscriptionStatus: subscription.subscriptionStatus,
             subscriptionStartTime: subscription.subscriptionStartTime,
             subscriptionEndTime: subscription.subscriptionEndTime,
@@ -1079,6 +1080,98 @@ router.get('/mock-tests/list', authenticate, isAdmin, async (req, res) => {
 
   } catch (error) {
     console.error('💥 Get mock tests error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+});
+
+// @route   POST /api/admin/refunds/remove
+// @desc    Remove refund request (set refundRequested to false)
+// @access  Admin
+router.post('/refunds/remove', authenticate, isAdmin, async (req, res) => {
+  try {
+    const { ticketNumber } = req.body;
+
+    const ticket = await Ticket.findOne({ ticketNumber });
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        message: 'Ticket not found'
+      });
+    }
+
+    ticket.refundRequested = false;
+    ticket.refundEligible = false;
+    await ticket.save();
+
+    res.json({
+      success: true,
+      message: 'Refund request removed successfully'
+    });
+  } catch (error) {
+    console.error('Remove refund error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+});
+
+// @route   POST /api/admin/refunds/process
+// @desc    Process 50% refund and update database
+// @access  Admin
+router.post('/refunds/process', authenticate, isAdmin, async (req, res) => {
+  try {
+    const { ticketNumber } = req.body;
+
+    const ticket = await Ticket.findOne({ ticketNumber });
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        message: 'Ticket not found'
+      });
+    }
+
+    // Get user's payment details
+    const payment = await PaymentDetails.findOne({
+      userId: ticket.userId,
+      status: 'success'
+    }).sort({ createdAt: -1 });
+
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: 'No payment found for refund'
+      });
+    }
+
+    // Calculate 50% refund
+    const refundAmount = payment.amount * 0.5;
+
+    // Update payment details
+    payment.refundAmount = refundAmount;
+    payment.refundStatus = 'completed';
+    payment.refundDate = new Date();
+    await payment.save();
+
+    // Update ticket - REMOVE refundRequested
+    ticket.refundRequested = false;
+    ticket.refundEligible = false;
+    ticket.status = 'inactive';
+    ticket.resolvedAt = new Date();
+    await ticket.save();
+
+    res.json({
+      success: true,
+      message: 'Refund processed successfully',
+      refundAmount
+    });
+  } catch (error) {
+    console.error('Process refund error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',

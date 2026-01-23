@@ -1,3 +1,4 @@
+// frontend/src/app/dashboard/chapter-tests/page.tsx - UPDATED
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -305,7 +306,6 @@ export default function ChapterTestsPage() {
               )}
             </div>
 
-            {/* Question Navigator */}
             <div className="mt-6 pt-6 border-t">
               <p className="text-sm font-medium text-gray-700 mb-3">Quick Navigation:</p>
               <div className="grid grid-cols-10 gap-2">
@@ -332,6 +332,7 @@ export default function ChapterTestsPage() {
     );
   }
 
+  // 🔥 UPDATED: Results view with ALL OPTIONS displayed for MCQ
   if (showResults && results) {
     return (
       <div className="max-w-4xl mx-auto space-y-6">
@@ -347,59 +348,104 @@ export default function ChapterTestsPage() {
           </CardBody>
         </Card>
 
-        {results.details.map((detail: any, index: number) => (
-          <Card key={index}>
-            <CardBody className="p-6">
-              <div className="flex items-start justify-between mb-4">
-                <h3 className="font-semibold text-gray-900">
-                  Question {index + 1}
-                </h3>
-                <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                  detail.isCorrect
-                    ? 'bg-green-100 text-green-700'
-                    : 'bg-red-100 text-red-700'
-                }`}>
-                  {detail.isCorrect ? '✓ Correct' : '✗ Incorrect'}
-                </span>
-              </div>
-
-              <div className="text-gray-900 mb-4">
-                <LatexRenderer text={detail.question} />
-              </div>
-
-              <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-                <p className="text-sm">
-                  <span className="font-medium">Your Answer:</span>{' '}
-                  <span className={detail.isCorrect ? 'text-green-600' : 'text-red-600'}>
-                    {detail.userAnswer || 'Not answered'}
+        {results.details.map((detail: any, index: number) => {
+          const question = test.questions[index];
+          
+          return (
+            <Card key={index}>
+              <CardBody className="p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <h3 className="font-semibold text-gray-900">
+                    Question {index + 1}
+                  </h3>
+                  <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                    detail.isCorrect
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-red-100 text-red-700'
+                  }`}>
+                    {detail.isCorrect ? '✓ Correct' : '✗ Incorrect'}
                   </span>
-                </p>
-                {!detail.isCorrect && (
-                  <p className="text-sm">
-                    <span className="font-medium">Correct Answer:</span>{' '}
-                    <span className="text-green-600">{detail.correctAnswer}</span>
-                  </p>
-                )}
-              </div>
-
-              {detail.explanation && (
-                <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                  <p className="text-sm font-medium text-blue-900 mb-1">Explanation:</p>
-                  <div className="text-sm text-blue-800">
-                    <LatexRenderer text={detail.explanation} />
-                  </div>
-                  {detail.explanationImageUrl && (
-                    <img
-                      src={detail.explanationImageUrl}
-                      alt="Explanation"
-                      className="mt-2 max-w-full h-auto rounded-lg"
-                    />
-                  )}
                 </div>
-              )}
-            </CardBody>
-          </Card>
-        ))}
+
+                <div className="text-gray-900 mb-4">
+                  <LatexRenderer text={detail.question} />
+                </div>
+
+                {/* 🔥 NEW: Display ALL OPTIONS for MCQ */}
+                {question.questionType === 'S' && (
+                  <div className="space-y-2 mb-4">
+                    {['A', 'B', 'C', 'D'].map((option) => {
+                      const isUserAnswer = detail.userAnswer === option;
+                      const isCorrectAnswer = detail.correctAnswer === option;
+                      
+                      return (
+                        <div
+                          key={option}
+                          className={`p-3 rounded-lg border-2 ${
+                            isCorrectAnswer
+                              ? 'border-green-500 bg-green-50'
+                              : isUserAnswer && !detail.isCorrect
+                              ? 'border-red-500 bg-red-50'
+                              : 'border-gray-200'
+                          }`}
+                        >
+                          <div className="flex items-start gap-2">
+                            <span className="font-bold text-gray-700 mt-1">
+                              {option}.
+                            </span>
+                            <div className="flex-1">
+                              <LatexRenderer text={question[`option${option}`]} />
+                            </div>
+                            {isCorrectAnswer && (
+                              <span className="text-green-600 font-bold">✓ Correct</span>
+                            )}
+                            {isUserAnswer && !isCorrectAnswer && (
+                              <span className="text-red-600 font-bold">✗ Your Answer</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* For Numerical questions */}
+                {question.questionType === 'N' && (
+                  <div className="bg-gray-50 p-4 rounded-lg space-y-2 mb-4">
+                    <p className="text-sm">
+                      <span className="font-medium">Your Answer:</span>{' '}
+                      <span className={detail.isCorrect ? 'text-green-600' : 'text-red-600'}>
+                        {detail.userAnswer || 'Not answered'}
+                      </span>
+                    </p>
+                    {!detail.isCorrect && (
+                      <p className="text-sm">
+                        <span className="font-medium">Correct Answer:</span>{' '}
+                        <span className="text-green-600">{detail.correctAnswer}</span>
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {detail.explanation && (
+                  <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                    <p className="text-sm font-medium text-blue-900 mb-1">Explanation:</p>
+                    <div className="text-sm text-blue-800">
+                      <LatexRenderer text={detail.explanation} />
+                    </div>
+                    {detail.explanationImageUrl && (
+                      <img
+                        src={detail.explanationImageUrl}
+                        alt="Explanation"
+                        className="mt-2 max-w-full h-auto rounded-lg"
+                      />
+                    )}
+                  </div>
+                )}
+              </CardBody>
+            </Card>
+          );
+        })}
 
         <div className="flex gap-3">
           <Button variant="outline" onClick={resetTest} className="flex-1">
@@ -439,6 +485,7 @@ export default function ChapterTestsPage() {
               onChange={(e) => setSelectedChapter(e.target.value)}
               options={[
                 { value: '', label: selectedSubject ? 'Select Chapter' : 'Select Subject First' },
+                { value: 'ALL_CHAPTERS', label: '📚 All Chapters' },  // 🔥 NEW
                 ...chapters.map((c) => ({ value: c, label: c })),
               ]}
               disabled={!selectedSubject}

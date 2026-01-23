@@ -1,10 +1,12 @@
+// frontend/src/app/admin/refunds/page.tsx - UPDATED with Remove
 'use client';
 
 import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import Card, { CardBody } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
-import { adminAPI } from '@/lib/api';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://zeta-exams-backend-2.vercel.app';
 
 export default function AdminRefundsPage() {
   const [refunds, setRefunds] = useState<any[]>([]);
@@ -17,14 +19,48 @@ export default function AdminRefundsPage() {
   const loadRefunds = async () => {
     try {
       setLoading(true);
-      const response = await adminAPI.getRefunds();
-      if (response.data.success) {
-        setRefunds(response.data.tickets || []);
+      const response = await fetch(`${API_URL}/api/admin/refunds`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        setRefunds(data.tickets || []);
       }
     } catch (error) {
       toast.error('Failed to load refund requests');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 🔥 NEW: Remove refund request
+  const handleRemoveRefund = async (ticketNumber: string) => {
+    if (!window.confirm('Remove this refund request? This will set refundRequested to false.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/api/admin/refunds/remove`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({ ticketNumber }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        toast.success('Refund request removed successfully');
+        loadRefunds();
+      } else {
+        toast.error(data.message || 'Failed to remove refund');
+      }
+    } catch (error: any) {
+      toast.error('Failed to remove refund request');
     }
   };
 
@@ -34,10 +70,21 @@ export default function AdminRefundsPage() {
     }
 
     try {
-      const response = await adminAPI.processRefund(ticketNumber);
-      if (response.data.success) {
-        toast.success(`Refund processed: ₹${response.data.refundAmount}`);
+      const response = await fetch(`${API_URL}/api/admin/refunds/process`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({ ticketNumber }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        toast.success(`Refund processed: ₹${data.refundAmount}`);
         loadRefunds();
+      } else {
+        toast.error(data.message || 'Failed to process refund');
       }
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to process refund');
@@ -51,6 +98,9 @@ export default function AdminRefundsPage() {
           <h1 className="text-2xl font-bold">Refund Management</h1>
           <p className="text-gray-600">Pending Refunds: {refunds.length}</p>
         </div>
+        <Button onClick={loadRefunds} variant="outline">
+          🔄 Refresh
+        </Button>
       </div>
 
       {refunds.length === 0 ? (
@@ -109,13 +159,23 @@ export default function AdminRefundsPage() {
                     </div>
                   </div>
 
-                  <div className="ml-6">
+                  <div className="ml-6 space-y-2">
                     <Button
                       variant="primary"
                       onClick={() => handleProcessRefund(ticket.ticketNumber)}
                       disabled={!ticket.refundEligible}
+                      className="w-full"
                     >
                       Process 50% Refund
+                    </Button>
+                    
+                    {/* 🔥 NEW: Remove Refund Button */}
+                    <Button
+                      variant="outline"
+                      onClick={() => handleRemoveRefund(ticket.ticketNumber)}
+                      className="w-full"
+                    >
+                      Remove Refund Request
                     </Button>
                   </div>
                 </div>
