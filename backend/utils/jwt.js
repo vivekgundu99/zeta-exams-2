@@ -1,4 +1,4 @@
-// backend/utils/jwt.js - UPDATED WITH SESSION VERSION
+// backend/utils/jwt.js - UPDATED WITH ADMIN EXCEPTION
 const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -10,21 +10,21 @@ if (!JWT_SECRET) {
 
 console.log('✅ JWT_SECRET loaded (length:', JWT_SECRET.length, ')');
 
-// 🔥 UPDATED: Generate token WITH sessionVersion
+// 🔥 UPDATED: Generate token with admin exception
 const generateToken = (userId, email, isAdmin = false, sessionVersion = 0) => {
   try {
-    console.log('🔑 Generating token with session version:', {
+    console.log('🔑 Generating token:', {
       userId,
       email,
       isAdmin,
-      sessionVersion
+      sessionVersion: isAdmin ? 'N/A (Admin)' : sessionVersion
     });
 
     const payload = {
       userId, 
       email,
       isAdmin,
-      sessionVersion,  // 🔥 CRITICAL: Include sessionVersion in JWT
+      sessionVersion,  // For admin: 0 (ignored), For users: incremental version
       timestamp: Date.now()
     };
 
@@ -34,7 +34,7 @@ const generateToken = (userId, email, isAdmin = false, sessionVersion = 0) => {
       { expiresIn: '7d' }
     );
 
-    console.log('✅ Token generated with sessionVersion:', sessionVersion);
+    console.log('✅ Token generated');
     
     return token;
   } catch (error) {
@@ -56,7 +56,8 @@ const verifyToken = (token) => {
     
     console.log('✅ Token verified:', {
       userId: decoded.userId,
-      sessionVersion: decoded.sessionVersion,
+      isAdmin: decoded.isAdmin,
+      sessionVersion: decoded.isAdmin ? 'N/A (Admin)' : decoded.sessionVersion,
       expiresAt: new Date(decoded.exp * 1000).toISOString()
     });
 

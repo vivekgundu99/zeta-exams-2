@@ -1,8 +1,8 @@
-// backend/middleware/auth.js - UPDATED WITH SESSION VERSION VALIDATION
+// backend/middleware/auth.js - UPDATED WITH ADMIN EXCEPTION
 const { verifyToken } = require('../utils/jwt');
 const User = require('../models/User');
 
-// 🔥 CRITICAL: Authenticate with session version validation
+// 🔥 UPDATED: Authenticate with admin exception for multi-device login
 const authenticate = async (req, res, next) => {
   try {
     console.log('🔐 Authentication Check:', {
@@ -39,6 +39,7 @@ const authenticate = async (req, res, next) => {
       decoded = verifyToken(token);
       console.log('✅ Token verified:', {
         userId: decoded.userId,
+        isAdmin: decoded.isAdmin,
         sessionVersion: decoded.sessionVersion
       });
     } catch (error) {
@@ -50,9 +51,9 @@ const authenticate = async (req, res, next) => {
       });
     }
     
-    // Admin bypass
+    // 🔥 ADMIN EXCEPTION - Skip session version check for admin
     if (decoded.isAdmin) {
-      console.log('👑 Admin authenticated');
+      console.log('👑 Admin authenticated - Multi-device login allowed');
       req.user = {
         userId: decoded.userId,
         email: decoded.email,
@@ -61,7 +62,7 @@ const authenticate = async (req, res, next) => {
       return next();
     }
     
-    // 🔥 CRITICAL: Check user and validate sessionVersion
+    // 🔥 REGULAR USER: Check user and validate sessionVersion
     console.log('👤 Validating user and session version...');
     const user = await User.findOne({ userId: decoded.userId });
     
@@ -74,7 +75,7 @@ const authenticate = async (req, res, next) => {
       });
     }
     
-    // 🔥 SESSION VERSION VALIDATION - THIS IS THE MAGIC
+    // 🔥 SESSION VERSION VALIDATION - Only for regular users
     if (decoded.sessionVersion !== user.sessionVersion) {
       console.log('❌ Session version mismatch:', {
         tokenVersion: decoded.sessionVersion,

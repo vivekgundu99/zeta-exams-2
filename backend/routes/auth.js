@@ -238,14 +238,13 @@ router.post('/register', async (req, res) => {
 // @route   POST /api/auth/login
 // @desc    User login (handles both admin and regular users)
 // @access  Public
-// 🔥 UPDATED: Login route with sessionVersion increment
 router.post('/login', authLimiter, async (req, res) => {
   try {
     const { email, phoneNumber, password, isAdmin } = req.body;
 
     console.log('🔵 Login attempt:', { email, isAdmin });
 
-    // Admin login (unchanged)
+    // 🔥 ADMIN LOGIN - No session version, multi-device allowed
     if (isAdmin) {
       const adminEmail = process.env.ADMIN_EMAIL;
       const adminPassword = process.env.ADMIN_PASSWORD || 'Zeta@123';
@@ -257,8 +256,10 @@ router.post('/login', authLimiter, async (req, res) => {
         });
       }
 
-      // Admin token (no sessionVersion)
+      // 🔥 Admin token WITHOUT sessionVersion (sessionVersion: 0 means no validation)
       const token = generateToken('ADMIN', email, true, 0);
+
+      console.log('✅ Admin login successful - Multi-device login enabled');
 
       return res.status(200).json({
         success: true,
@@ -273,7 +274,7 @@ router.post('/login', authLimiter, async (req, res) => {
       });
     }
 
-    // Regular user login
+    // 🔥 REGULAR USER LOGIN - Session version enforced
     if (!email || !phoneNumber || !password) {
       return res.status(400).json({
         success: false,
@@ -310,12 +311,12 @@ router.post('/login', authLimiter, async (req, res) => {
       });
     }
 
-    // 🔥 CRITICAL: INCREMENT SESSION VERSION (Logout from all other devices)
+    // 🔥 INCREMENT SESSION VERSION (Logout from all other devices)
     console.log('🔑 Incrementing sessionVersion to logout other devices...');
     
     user.sessionVersion = (user.sessionVersion || 0) + 1;
     user.lastLoginTime = new Date();
-    user.loginStatus = true; // Keep for backwards compatibility
+    user.loginStatus = true;
     
     await user.save();
 
@@ -326,10 +327,10 @@ router.post('/login', authLimiter, async (req, res) => {
       user.userId, 
       user.email, 
       false, 
-      user.sessionVersion  // CRITICAL: Include sessionVersion in token
+      user.sessionVersion
     );
 
-    console.log('✅ Login successful with sessionVersion:', user.sessionVersion);
+    console.log('✅ Regular user login successful with sessionVersion:', user.sessionVersion);
 
     res.status(200).json({
       success: true,
@@ -349,74 +350,6 @@ router.post('/login', authLimiter, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error',
-      error: error.message
-    });
-  }
-});
-
-// 🔥 UPDATED: Register route - initialize sessionVersion
-router.post('/register', async (req, res) => {
-  try {
-    console.log('📝 Registration started');
-    const { email, phoneNumber, password, confirmPassword, otp } = req.body;
-
-    // ... (keep all validation)
-
-    // Generate userId
-    const userId = generateUserId();
-
-    // 🔥 Create user WITH sessionVersion initialized to 1
-    const user = await User.create({
-      userId,
-      email,
-      phoneNumber: encryptPhone(phoneNumber),
-      sessionVersion: 1,  // 🔥 Initialize sessionVersion
-      loginStatus: false,
-      lastLoginTime: null
-    });
-
-    console.log('✅ User created with sessionVersion: 1');
-
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Create user data
-    await UserData.create({
-      userId,
-      password: hashedPassword,
-      userDetails: false,
-      exam: null
-    });
-
-    // Mark OTP as used
-    const otpRecord = await OTP.findOne({ email, purpose: 'registration', isUsed: false });
-    if (otpRecord) {
-      otpRecord.isUsed = true;
-      await otpRecord.save();
-    }
-
-    // 🔥 Generate token WITH sessionVersion
-    const token = generateToken(userId, email, false, user.sessionVersion);
-
-    console.log('🎉 Registration completed with sessionVersion:', user.sessionVersion);
-
-    return res.status(201).json({
-      success: true,
-      message: 'Registration successful',
-      token,
-      user: {
-        userId,
-        email,
-        phoneNumber,
-        userDetails: false
-      }
-    });
-
-  } catch (error) {
-    console.error('💥 Registration error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Server error during registration',
       error: error.message
     });
   }

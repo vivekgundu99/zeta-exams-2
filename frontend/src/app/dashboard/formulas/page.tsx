@@ -85,8 +85,9 @@ export default function FormulasPage() {
 
       const data = await response.json();
       if (data.success && data.formulas) {
-        // Extract unique subjects from formulas
-        const uniqueSubjects = [...new Set(data.formulas.map((f: any) => f.subject))];
+        // 🔥 FIXED: Use Array.from instead of spread operator
+        const subjectSet = new Set(data.formulas.map((f: any) => f.subject));
+        const uniqueSubjects = Array.from(subjectSet);
         setSubjects(uniqueSubjects as string[]);
       }
     } catch (error) {
@@ -111,8 +112,9 @@ export default function FormulasPage() {
 
       const data = await response.json();
       if (data.success && data.formulas) {
-        // Extract unique chapters from formulas
-        const uniqueChapters = [...new Set(data.formulas.map((f: any) => f.chapter))];
+        // 🔥 FIXED: Use Array.from instead of spread operator
+        const chapterSet = new Set(data.formulas.map((f: any) => f.chapter));
+        const uniqueChapters = Array.from(chapterSet);
         setChapters(uniqueChapters as string[]);
         setSelectedChapter('');
       }
