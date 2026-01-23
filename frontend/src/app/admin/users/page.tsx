@@ -5,6 +5,7 @@ import { toast } from 'react-hot-toast';
 import Card, { CardBody } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
+import Modal from '@/components/ui/Modal';
 import { adminAPI } from '@/lib/api';
 
 export default function AdminUsersPage() {
@@ -16,6 +17,10 @@ export default function AdminUsersPage() {
   });
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // View Details Modal State
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [viewModal, setViewModal] = useState(false);
 
   useEffect(() => {
     loadUsers(1);
@@ -116,11 +121,9 @@ export default function AdminUsersPage() {
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">User ID</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Exam</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Subscription</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Joined</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                     </tr>
                   </thead>
@@ -135,9 +138,6 @@ export default function AdminUsersPage() {
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">
                           {user.email}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
-                          {user.phoneNumber}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-sm">
                           {user.exam ? (
@@ -158,10 +158,18 @@ export default function AdminUsersPage() {
                             {user.subscriptionStatus || 'active'}
                           </span>
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                          {new Date(user.createdAt).toLocaleDateString()}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
+                        <td className="px-4 py-3 whitespace-nowrap space-x-2">
+                          {/* VIEW DETAILS BUTTON */}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedUser(user);
+                              setViewModal(true);
+                            }}
+                          >
+                            View
+                          </Button>
                           <Button
                             size="sm"
                             variant="danger"
@@ -207,6 +215,75 @@ export default function AdminUsersPage() {
           )}
         </CardBody>
       </Card>
+
+      {/* VIEW USER DETAILS MODAL */}
+      <Modal
+        isOpen={viewModal}
+        onClose={() => setViewModal(false)}
+        title="User Details"
+        size="lg"
+      >
+        {selectedUser && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-gray-600">User ID</p>
+                <p className="font-mono text-sm">{selectedUser.userId}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Name</p>
+                <p className="font-semibold">{selectedUser.name || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Email</p>
+                <p>{selectedUser.email}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Phone</p>
+                <p>{selectedUser.phoneNumber}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Profession</p>
+                <p className="capitalize">{selectedUser.profession || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Grade</p>
+                <p>{selectedUser.grade || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Exam</p>
+                <p className="uppercase">{selectedUser.exam || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">College/School</p>
+                <p>{selectedUser.collegeName || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">State</p>
+                <p>{selectedUser.state || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Life Ambition</p>
+                <p>{selectedUser.lifeAmbition || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Subscription</p>
+                <p className="uppercase font-bold">{selectedUser.subscription || 'FREE'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Subscription Status</p>
+                <p className={`font-bold ${selectedUser.subscriptionStatus === 'active' ? 'text-green-600' : 'text-red-600'}`}>
+                  {selectedUser.subscriptionStatus || 'N/A'}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Created</p>
+                <p>{new Date(selectedUser.createdAt).toLocaleDateString()}</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
