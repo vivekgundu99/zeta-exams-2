@@ -454,8 +454,8 @@ router.delete('/formulas/:id', async (req, res) => {
   }
 });
 
-// UPDATED: @route   POST /api/admin/mock-tests/create
-// @desc    Create a mock test (FIXED: Chapter/Topic can be empty)
+// @route   POST /api/admin/mock-tests/create
+// @desc    Create a mock test with new CSV format
 // @access  Admin
 router.post('/mock-tests/create', authenticate, isAdmin, async (req, res) => {
   try {
@@ -463,36 +463,86 @@ router.post('/mock-tests/create', authenticate, isAdmin, async (req, res) => {
 
     console.log('📝 Creating mock test:', testName);
 
-    const lines = csvText.trim().split('\n');
+    const lines = csvText.trim().split('\n').filter(l => l.trim());
     const questions = [];
 
-    for (const line of lines) {
-      const parts = parseCSVLine(line);
-      
-      if (parts.length < 17) {
-        console.error('❌ Invalid line format:', parts.length, 'parts');
-        continue;
+    for (let i = 0; i < lines.length; i++) {
+      try {
+        const line = lines[i];
+        const parts = parseCSVLine(line);
+        
+        // NEW FORMAT: serial#type#question#optA#optB#optC#optD#answer#qImg#aImg#bImg#cImg#dImg#explanation
+        // For MCQ: 1#S#Question?#A#B#C#D#A#url#url#url#url#url#Explanation
+        // For Numerical: 2#N#Question?#####42.5#url#####Explanation
+        
+        if (parts.length < 14) {
+          console.error(`❌ Line ${i + 1}: Invalid format (expected 14+ fields, got ${parts.length})`);
+          continue;
+        }
+        
+        const serialNumber = parts[0]; // Serial number (not used, just for order)
+        const questionType = parts[1];
+        const question = parts[2];
+        const optionA = parts[3] || null;
+        const optionB = parts[4] || null;
+        const optionC = parts[5] || null;
+        const optionD = parts[6] || null;
+        const answer = parts[7];
+        const questionImageUrl = parts[8] || null;
+        const optionAImageUrl = parts[9] || null;
+        const optionBImageUrl = parts[10] || null;
+        const optionCImageUrl = parts[11] || null;
+        const optionDImageUrl = parts[12] || null;
+        const explanation = parts[13] || null;
+        
+        // Validate
+        if (!questionType || !question || !answer) {
+          console.error(`❌ Line ${i + 1}: Missing required fields`);
+          continue;
+        }
+        
+        if (!['S', 'N'].includes(questionType)) {
+          console.error(`❌ Line ${i + 1}: Invalid question type: ${questionType}`);
+          continue;
+        }
+        
+        // Determine subject based on position for JEE/NEET
+        let subject = '';
+        if (examType === 'jee') {
+          // JEE: First 30 Physics, Next 30 Chemistry, Last 30 Maths
+          if (questions.length < 30) subject = 'Physics';
+          else if (questions.length < 60) subject = 'Chemistry';
+          else subject = 'Mathematics';
+        } else {
+          // NEET: First 45 Physics, Next 45 Chemistry, Last 90 Biology
+          if (questions.length < 45) subject = 'Physics';
+          else if (questions.length < 90) subject = 'Chemistry';
+          else subject = 'Biology';
+        }
+        
+        questions.push({
+          questionType,
+          subject,
+          chapter: 'General',
+          topic: 'General',
+          question: question.replace(/latex:/g, ''),
+          optionA,
+          optionB,
+          optionC,
+          optionD,
+          answer,
+          questionImageUrl,
+          optionAImageUrl,
+          optionBImageUrl,
+          optionCImageUrl,
+          optionDImageUrl,
+          explanation,
+          explanationImageUrl: null
+        });
+        
+      } catch (error) {
+        console.error(`❌ Line ${i + 1} error:`, error.message);
       }
-      
-      questions.push({
-        questionType: parts[0],
-        subject: parts[1],
-        chapter: parts[2] || 'General', // Default if empty
-        topic: parts[3] || 'General',   // Default if empty
-        question: parts[4],
-        optionA: parts[5] || null,
-        optionB: parts[6] || null,
-        optionC: parts[7] || null,
-        optionD: parts[8] || null,
-        answer: parts[9],
-        questionImageUrl: parts[10] || null,
-        optionAImageUrl: parts[11] || null,
-        optionBImageUrl: parts[12] || null,
-        optionCImageUrl: parts[13] || null,
-        optionDImageUrl: parts[14] || null,
-        explanation: parts[15] || null,
-        explanationImageUrl: parts[16] || null
-      });
     }
 
     const requiredQuestions = examType === 'jee' ? 90 : 180;
@@ -940,56 +990,41 @@ router.post('/tickets/refund-eligible', authenticate, isAdmin, async (req, res) 
   }
 });
 
-// @route   POST /api/admin/refunds/process
-// @desc    Process a refund (50% of subscription amount)
+// @route   GET /api/admin/refunds
+// @desc    Get tickets marked for refund
 // @access  Admin
-router.post('/refunds/process', async (req, res) => {
+router.get('/refunds', authenticate, isAdmin, async (req, res) => {
   try {
-    const { ticketNumber } = req.body;
-
-    const ticket = await Ticket.findOne({ ticketNumber });
-
-    if (!ticket || !ticket.refundEligible) {
-      return res.status(400).json({
-        success: false,
-        message: 'Ticket not eligible for refund'
-      });
-    }
-
-    // Get latest payment
-    const payment = await PaymentDetails.findOne({ 
-      userId: ticket.userId,
-      status: 'success'
+    // Only get tickets where refundRequested is true
+    const tickets = await Ticket.find({ 
+      refundRequested: true 
     }).sort({ createdAt: -1 });
 
-    if (!payment) {
-      return res.status(404).json({
-        success: false,
-        message: 'No payment found for this user'
-      });
-    }
-
-    // Calculate 50% refund
-    const refundAmount = payment.amount * 0.5;
-
-    payment.refundAmount = refundAmount;
-    payment.refundStatus = 'completed';
-    payment.refundDate = new Date();
-    await payment.save();
-
-    // Close ticket
-    ticket.status = 'inactive';
-    ticket.resolvedAt = new Date();
-    await ticket.save();
+    // Fetch subscription details for each ticket
+    const ticketsWithSubscription = await Promise.all(
+      tickets.map(async (ticket) => {
+        const subscription = await Subscription.findOne({ userId: ticket.userId });
+        return {
+          ...ticket.toObject(),
+          subscriptionDetails: subscription ? {
+            subscription: subscription.subscription,
+            subscriptionStatus: subscription.subscriptionStatus,
+            subscriptionStartTime: subscription.subscriptionStartTime,
+            subscriptionEndTime: subscription.subscriptionEndTime,
+            exam: subscription.exam
+          } : null
+        };
+      })
+    );
 
     res.json({
       success: true,
-      message: 'Refund processed successfully',
-      refundAmount
+      count: ticketsWithSubscription.length,
+      tickets: ticketsWithSubscription
     });
 
   } catch (error) {
-    console.error('Process refund error:', error);
+    console.error('Get refunds error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',

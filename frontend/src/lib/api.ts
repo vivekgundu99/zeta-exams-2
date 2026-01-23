@@ -268,7 +268,7 @@ export const adminAPI = {
     api.post('/api/admin/tickets/refund-eligible', { ticketNumber }),
   
   getRefunds: () =>
-    api.get('/api/admin/tickets?refundRequested=true'),
+  api.get('/api/admin/refunds'),
   
   processRefund: (ticketNumber: string) =>
     api.post('/api/admin/refunds/process', { ticketNumber }),

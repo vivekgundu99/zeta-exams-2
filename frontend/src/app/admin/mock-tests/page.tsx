@@ -127,26 +127,27 @@ export default function AdminMockTestsPage() {
             
             <div className="bg-blue-50 p-4 rounded-lg text-sm mb-6">
               <p className="font-semibold text-blue-900 mb-2">CSV Format Guide:</p>
-              <div className="space-y-2 text-blue-800">
-                <p><strong>JEE:</strong> 90 questions (30 Physics + 30 Chemistry + 30 Maths)</p>
-                <p><strong>NEET:</strong> 180 questions (45 Physics + 45 Chemistry + 90 Biology)</p>
-                <p className="mt-3"><strong>Format:</strong></p>
-                <p className="font-mono text-xs bg-white p-2 rounded">
-                  Type#Subject#Chapter#Topic#Question#OptA#OptB#OptC#OptD#Answer#QImg#AImg#BImg#CImg#DImg#Explanation#ExpImg
-                </p>
-                <p className="mt-2"><strong>Important:</strong></p>
-                <ul className="list-disc list-inside space-y-1">
-                  <li>Chapter and Topic can be EMPTY (use ##)</li>
-                  <li>MCQ: Type=S, provide all 4 options</li>
-                  <li>Numerical: Type=N, leave options empty (#####)</li>
-                </ul>
-                <p className="mt-2"><strong>Examples:</strong></p>
-                <p className="font-mono text-xs bg-white p-2 rounded">
-                  S#Physics##Topic1#Question?#OptA#OptB#OptC#OptD#A#img####Explanation#
-                </p>
-                <p className="font-mono text-xs bg-white p-2 rounded">
-                  N#Chemistry##Topic2#Question?#####42.5#img#####Explanation#
-                </p>
+              <div className="bg-blue-50 p-4 rounded-lg text-sm mb-6">
+                <p className="font-semibold text-blue-900 mb-2">NEW CSV Format Guide:</p>
+                <div className="space-y-2 text-blue-800">
+                  <p><strong>Format:</strong> Serial#Type#Question#OptA#OptB#OptC#OptD#Answer#QImg#AImg#BImg#CImg#DImg#Explanation</p>
+                  <p className="mt-3"><strong>MCQ Example:</strong></p>
+                  <p className="font-mono text-xs bg-white p-2 rounded">
+                    1#S#What is 2+2?#3#4#5#6#B####Explanation text
+                  </p>
+                  <p className="mt-2"><strong>Numerical Example:</strong></p>
+                  <p className="font-mono text-xs bg-white p-2 rounded">
+                    2#N#Calculate mass#####42.5#url#####Explanation
+                  </p>
+                  <p className="mt-3"><strong>Important:</strong></p>
+                  <ul className="list-disc list-inside space-y-1">
+                    <li>Serial numbers (1, 2, 3...) for ordering only</li>
+                    <li>For JEE: Questions 1-30 Physics, 31-60 Chemistry, 61-90 Maths</li>
+                    <li>For NEET: Questions 1-45 Physics, 46-90 Chemistry, 91-180 Biology</li>
+                    <li>Use ##### for empty fields (numerical options)</li>
+                    <li>Total: JEE=90 questions, NEET=180 questions</li>
+                  </ul>
+                </div>
               </div>
             </div>
 

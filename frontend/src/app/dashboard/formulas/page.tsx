@@ -7,7 +7,7 @@ import Card, { CardBody } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Dropdown from '@/components/ui/Dropdown';
 import Loader from '@/components/ui/Loader';
-import { userAPI } from '@/lib/api';
+import { userAPI, questionsAPI } from '@/lib/api';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://zeta-exams-backend-2.vercel.app';
 
@@ -16,14 +16,27 @@ export default function FormulasPage() {
   const [subscription, setSubscription] = useState<any>(null);
   const [examType, setExamType] = useState('');
   const [subjects, setSubjects] = useState<string[]>([]);
+  const [chapters, setChapters] = useState<string[]>([]);
   const [selectedSubject, setSelectedSubject] = useState('');
   const [selectedChapter, setSelectedChapter] = useState('');
   const [formulas, setFormulas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    checkSubscription();
+    checkSubscriptionAndLoad();
   }, []);
+
+  useEffect(() => {
+    if (examType && subscription?.subscription === 'gold') {
+      loadSubjects();
+    }
+  }, [examType]);
+
+  useEffect(() => {
+    if (selectedSubject) {
+      loadChapters();
+    }
+  }, [selectedSubject]);
 
   useEffect(() => {
     if (examType && subscription?.subscription === 'gold') {
@@ -31,25 +44,40 @@ export default function FormulasPage() {
     }
   }, [examType, selectedSubject, selectedChapter]);
 
-  const checkSubscription = async () => {
+  const checkSubscriptionAndLoad = async () => {
     try {
       const response = await userAPI.getProfile();
       if (response.data.success) {
         setSubscription(response.data.subscription);
         setExamType(response.data.user.exam);
-        
-        if (response.data.subscription.subscription === 'gold') {
-          // Load subjects for gold users
-          const subjectsData = response.data.user.exam === 'jee'
-            ? ['Physics', 'Chemistry', 'Mathematics']
-            : ['Physics', 'Chemistry', 'Biology'];
-          setSubjects(subjectsData);
-        }
       }
     } catch (error) {
-      toast.error('Failed to load subscription details');
+      console.error('Failed to load subscription');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadSubjects = async () => {
+    try {
+      const response = await questionsAPI.getSubjects(examType);
+      if (response.data.success) {
+        setSubjects(response.data.subjects);
+      }
+    } catch (error) {
+      console.error('Failed to load subjects');
+    }
+  };
+
+  const loadChapters = async () => {
+    try {
+      const response = await questionsAPI.getChapters(selectedSubject, examType);
+      if (response.data.success) {
+        setChapters(response.data.chapters);
+        setSelectedChapter('');
+      }
+    } catch (error) {
+      console.error('Failed to load chapters');
     }
   };
 
@@ -68,8 +96,6 @@ export default function FormulasPage() {
       if (selectedSubject) params.append('subject', selectedSubject);
       if (selectedChapter) params.append('chapter', selectedChapter);
 
-      console.log('📖 Loading formulas with params:', params.toString());
-
       const response = await fetch(`${API_URL}/api/formulas/list?${params.toString()}`, {
         method: 'GET',
         headers: {
@@ -79,19 +105,14 @@ export default function FormulasPage() {
       });
 
       const data = await response.json();
-      
-      console.log('📖 Formulas response:', data);
 
       if (data.success) {
         setFormulas(data.formulas || []);
-        if (data.formulas.length === 0) {
-          toast.error('No formulas found for selected filters');
-        }
       } else {
         toast.error(data.message || 'Failed to load formulas');
       }
     } catch (error: any) {
-      console.error('💥 Load formulas error:', error);
+      console.error('Load formulas error:', error);
       toast.error('Failed to load formulas');
     } finally {
       setLoading(false);
@@ -135,7 +156,7 @@ export default function FormulasPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Formulas & Quick Reference</h1>
-        <p className="text-gray-600">Access all important formulas by chapter</p>
+        <p className="text-gray-600">Access all important formulas by subject and chapter</p>
       </div>
 
       <Card>
@@ -159,8 +180,10 @@ export default function FormulasPage() {
               value={selectedChapter}
               onChange={(e) => setSelectedChapter(e.target.value)}
               options={[
-                { value: '', label: 'All Chapters' },
+                { value: '', label: selectedSubject ? 'All Chapters' : 'Select Subject First' },
+                ...chapters.map((c) => ({ value: c, label: c })),
               ]}
+              disabled={!selectedSubject}
             />
           </div>
 
@@ -189,7 +212,7 @@ export default function FormulasPage() {
                       </div>
                       <div className="flex-1">
                         <h3 className="font-semibold text-gray-900">{formula.topicName}</h3>
-                        <p className="text-xs text-gray-600">{formula.chapter}</p>
+                        <p className="text-xs text-gray-600">{formula.subject} • {formula.chapter}</p>
                       </div>
                     </div>
                     {formula.description && (
