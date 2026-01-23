@@ -27,7 +27,7 @@ export default function LoginPage() {
   } = useForm<LoginFormData>();
 
   /* ------------------------------------------------------------------
-     🔥 NEW: SESSION MESSAGE + AUTO REDIRECT
+     🔥 SESSION MESSAGE + AUTO REDIRECT
   -------------------------------------------------------------------*/
   useEffect(() => {
     const message = sessionStorage.getItem('loginMessage');
@@ -60,10 +60,14 @@ export default function LoginPage() {
     try {
       setIsLoading(true);
 
+      console.log('🔵 Login attempt:', { email: data.email, isAdmin });
+
       const response = await authAPI.login({
         ...data,
         isAdmin,
       });
+
+      console.log('✅ Login response:', response.data);
 
       if (response.data.success) {
         storage.set('token', response.data.token);
@@ -86,8 +90,9 @@ export default function LoginPage() {
         }
       }
     } catch (error: any) {
-      console.error('Login error:', error);
-      toast.error(error.response?.data?.message || 'Login failed');
+      console.error('❌ Login error:', error);
+      const errorMessage = error.response?.data?.message || 'Login failed. Please try again.';
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }

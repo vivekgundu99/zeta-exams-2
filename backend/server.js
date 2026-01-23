@@ -1,4 +1,4 @@
-// backend/server.js - UPDATED with Limits Reset
+// backend/server.js - UPDATED: Removed global authenticate middleware
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -59,9 +59,8 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
-// 🔥 NEW: Auto-reset limits middleware (applies to all routes)
-const { authenticate } = require('./middleware/auth');
-app.use(authenticate);
+// 🔥 FIXED: Only apply autoResetLimits globally (it checks auth internally)
+// DO NOT apply authenticate globally - it blocks login/register routes!
 app.use(autoResetLimits);
 
 app.use((req, res, next) => {
