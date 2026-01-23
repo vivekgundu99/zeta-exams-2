@@ -120,8 +120,8 @@ export default function LoginPage() {
 
         {/* LOGO / BRAND */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl shadow-lg shadow-purple-500/50 mb-4">
-            <span className="text-3xl font-bold text-white">Z</span>
+          <div className="inline-flex items-center justify-center w-16 h-16 mb-4">
+            <img src="/logo.svg" alt="Zeta Exams" className="w-full h-full" />
           </div>
           <h1 className="text-4xl font-bold text-gradient mb-2">
             Welcome Back!

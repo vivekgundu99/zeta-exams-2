@@ -45,3 +45,5 @@ temp/
 # Database dumps
 *.sql
 *.dump
+
+public/

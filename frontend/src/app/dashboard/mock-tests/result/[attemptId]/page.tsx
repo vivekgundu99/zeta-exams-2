@@ -1,290 +1,216 @@
-// frontend/src/app/admin/users/page.tsx - COMPLETE WITH VIEW DETAILS
+// frontend/src/app/dashboard/mock-tests/result/[attemptId]/page.tsx - FIXED
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import Card, { CardBody } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
-import Modal from '@/components/ui/Modal';
-import { adminAPI } from '@/lib/api';
+import Loader from '@/components/ui/Loader';
+import LatexRenderer from '@/components/ui/LatexRenderer';
+import { mockTestsAPI } from '@/lib/api';
 
-export default function AdminUsersPage() {
-  const [users, setUsers] = useState<any[]>([]);
-  const [pagination, setPagination] = useState({
-    currentPage: 1,
-    totalPages: 1,
-    totalUsers: 0,
-  });
-  const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  
-  // 🔥 NEW: View Details Modal State
-  const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [viewModal, setViewModal] = useState(false);
+export default function MockTestResultPage() {
+  const params = useParams();
+  const router = useRouter();
+  const [attempt, setAttempt] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadUsers(1);
+    loadResult();
   }, []);
 
-  const loadUsers = async (page: number) => {
+  const loadResult = async () => {
     try {
-      setLoading(true);
-      const response = await adminAPI.getUsers(page);
+      const response = await mockTestsAPI.getResult(params.attemptId as string);
+      
       if (response.data.success) {
-        setUsers(response.data.users || []);
-        setPagination(response.data.pagination);
+        setAttempt(response.data.attempt);
       }
-    } catch (error) {
-      toast.error('Failed to load users');
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to load result');
+      router.push('/dashboard/mock-tests');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDeactivate = async (userId: string, userName: string) => {
-    if (!window.confirm(`Are you sure you want to deactivate ${userName}?`)) {
-      return;
-    }
-
-    try {
-      const response = await adminAPI.deactivateUser(userId);
-      if (response.data.success) {
-        toast.success('User deactivated successfully');
-        loadUsers(pagination.currentPage);
-      }
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to deactivate user');
-    }
-  };
-
-  const filteredUsers = users.filter((user) => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
+  if (loading) {
     return (
-      user.email.toLowerCase().includes(query) ||
-      user.name?.toLowerCase().includes(query) ||
-      user.userId.toLowerCase().includes(query)
+      <div className="flex justify-center py-12">
+        <Loader size="lg" text="Loading results..." />
+      </div>
     );
-  });
+  }
 
-  const getSubscriptionColor = (sub: string) => {
-    const colors = {
-      free: 'bg-gray-100 text-gray-700',
-      silver: 'bg-gray-300 text-gray-800',
-      gold: 'bg-yellow-100 text-yellow-800',
-    };
-    return colors[sub as keyof typeof colors] || colors.free;
-  };
-
-  const getStatusColor = (status: string) => {
-    return status === 'active'
-      ? 'bg-green-100 text-green-700'
-      : 'bg-red-100 text-red-700';
-  };
+  if (!attempt) return null;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">User Management</h1>
-          <p className="text-gray-600">Total Users: {pagination.totalUsers}</p>
-        </div>
-      </div>
-
-      <Card>
-        <CardBody>
-          <div className="mb-4">
-            <Input
-              placeholder="Search by email, name, or user ID..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              leftIcon={
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              }
-            />
+    <div className="max-w-4xl mx-auto space-y-6">
+      {/* Result Summary Card */}
+      <Card className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white">
+        <CardBody className="p-8">
+          <h1 className="text-3xl font-bold mb-6">Test Results</h1>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div>
+              <p className="text-purple-100 text-sm mb-1">Score</p>
+              <p className="text-4xl font-bold">{attempt.score}</p>
+            </div>
+            <div>
+              <p className="text-purple-100 text-sm mb-1">Accuracy</p>
+              <p className="text-4xl font-bold">{attempt.accuracy}%</p>
+            </div>
+            <div>
+              <p className="text-purple-100 text-sm mb-1">Correct</p>
+              <p className="text-4xl font-bold text-green-300">{attempt.correctAnswers}</p>
+            </div>
+            <div>
+              <p className="text-purple-100 text-sm mb-1">Wrong</p>
+              <p className="text-4xl font-bold text-red-300">{attempt.incorrectAnswers}</p>
+            </div>
           </div>
 
-          {loading ? (
-            <div className="text-center py-8">Loading users...</div>
-          ) : filteredUsers.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              {searchQuery ? 'No users found matching your search' : 'No users registered yet'}
-            </div>
-          ) : (
-            <>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">User ID</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Exam</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Subscription</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredUsers.map((user) => (
-                      <tr key={user.userId} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 whitespace-nowrap text-sm font-mono text-gray-600">
-                          {user.userId.substring(0, 12)}...
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {user.name || 'N/A'}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-900">
-                          {user.email}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm">
-                          {user.exam ? (
-                            <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-semibold">
-                              {user.exam.toUpperCase()}
-                            </span>
-                          ) : (
-                            <span className="text-gray-400">Not Set</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm">
-                          <span className={`px-2 py-1 rounded text-xs font-semibold ${getSubscriptionColor(user.subscription)}`}>
-                            {user.subscription?.toUpperCase() || 'FREE'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm">
-                          <span className={`px-2 py-1 rounded text-xs font-semibold ${getStatusColor(user.subscriptionStatus)}`}>
-                            {user.subscriptionStatus || 'active'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap space-x-2">
-                          {/* 🔥 NEW: View Details Button */}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setSelectedUser(user);
-                              setViewModal(true);
-                            }}
-                          >
-                            View
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="danger"
-                            onClick={() => handleDeactivate(user.userId, user.name || user.email)}
-                            disabled={user.subscriptionStatus === 'inactive'}
-                          >
-                            {user.subscriptionStatus === 'inactive' ? 'Deactivated' : 'Deactivate'}
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+          <div className="mt-6 pt-6 border-t border-purple-400">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-purple-100 text-sm">Total Questions</p>
+                <p className="text-xl font-semibold">{attempt.totalQuestions}</p>
               </div>
-
-              {/* Pagination */}
-              {pagination.totalPages > 1 && (
-                <div className="mt-6 flex items-center justify-between">
-                  <p className="text-sm text-gray-600">
-                    Page {pagination.currentPage} of {pagination.totalPages}
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => loadUsers(pagination.currentPage - 1)}
-                      disabled={pagination.currentPage === 1}
-                    >
-                      Previous
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => loadUsers(pagination.currentPage + 1)}
-                      disabled={pagination.currentPage === pagination.totalPages}
-                    >
-                      Next
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
+              <div>
+                <p className="text-purple-100 text-sm">Attempted</p>
+                <p className="text-xl font-semibold">{attempt.attemptedQuestions}</p>
+              </div>
+              <div>
+                <p className="text-purple-100 text-sm">Unanswered</p>
+                <p className="text-xl font-semibold">{attempt.unanswered}</p>
+              </div>
+              <div>
+                <p className="text-purple-100 text-sm">Time Taken</p>
+                <p className="text-xl font-semibold">{attempt.timeTaken} min</p>
+              </div>
+            </div>
+          </div>
         </CardBody>
       </Card>
 
-      {/* 🔥 NEW: View User Details Modal */}
-      <Modal
-        isOpen={viewModal}
-        onClose={() => setViewModal(false)}
-        title="User Details"
-        size="lg"
-      >
-        {selectedUser && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-gray-600">User ID</p>
-                <p className="font-mono text-sm">{selectedUser.userId}</p>
+      {/* Question-wise Analysis */}
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">Question-wise Analysis</h2>
+        
+        {attempt.detailedResults?.map((result: any, index: number) => (
+          <Card key={index} className="mb-4">
+            <CardBody className="p-6">
+              <div className="flex items-start justify-between mb-4">
+                <h3 className="font-semibold text-gray-900">
+                  Question {index + 1}
+                </h3>
+                <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                  result.isCorrect
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-red-100 text-red-700'
+                }`}>
+                  {result.isCorrect ? '✓ Correct' : '✗ Incorrect'}
+                </span>
               </div>
-              <div>
-                <p className="text-sm text-gray-600">Name</p>
-                <p className="font-semibold">{selectedUser.name || 'N/A'}</p>
+
+              <div className="text-gray-900 mb-4">
+                <LatexRenderer text={result.question} />
               </div>
-              <div>
-                <p className="text-sm text-gray-600">Email</p>
-                <p>{selectedUser.email}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Phone</p>
-                <p>{selectedUser.phoneNumber}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Profession</p>
-                <p className="capitalize">{selectedUser.profession || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Grade</p>
-                <p>{selectedUser.grade || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Exam</p>
-                <p className="uppercase">{selectedUser.exam || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">College/School</p>
-                <p>{selectedUser.collegeName || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">State</p>
-                <p>{selectedUser.state || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Life Ambition</p>
-                <p>{selectedUser.lifeAmbition || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Subscription</p>
-                <p className="uppercase font-bold">{selectedUser.subscription || 'FREE'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Subscription Status</p>
-                <p className={`font-bold ${selectedUser.subscriptionStatus === 'active' ? 'text-green-600' : 'text-red-600'}`}>
-                  {selectedUser.subscriptionStatus || 'N/A'}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Created</p>
-                <p>{new Date(selectedUser.createdAt).toLocaleDateString()}</p>
-              </div>
-            </div>
-          </div>
-        )}
-      </Modal>
+
+              {/* Options */}
+              {result.questionType === 'S' && (
+                <div className="space-y-2 mb-4">
+                  {['A', 'B', 'C', 'D'].map((option) => {
+                    const isUserAnswer = result.userAnswer === option;
+                    const isCorrectAnswer = result.correctAnswer === option;
+                    
+                    return (
+                      <div
+                        key={option}
+                        className={`p-3 rounded-lg border-2 ${
+                          isCorrectAnswer
+                            ? 'border-green-500 bg-green-50'
+                            : isUserAnswer && !result.isCorrect
+                            ? 'border-red-500 bg-red-50'
+                            : 'border-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          <span className="font-bold text-gray-700 mt-1">
+                            {option}.
+                          </span>
+                          <div className="flex-1">
+                            <LatexRenderer text={result[`option${option}`]} />
+                          </div>
+                          {isCorrectAnswer && (
+                            <span className="text-green-600 font-bold">✓ Correct</span>
+                          )}
+                          {isUserAnswer && !isCorrectAnswer && (
+                            <span className="text-red-600 font-bold">✗ Your Answer</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Numerical Answer */}
+              {result.questionType === 'N' && (
+                <div className="bg-gray-50 p-4 rounded-lg space-y-2 mb-4">
+                  <p className="text-sm">
+                    <span className="font-medium">Your Answer:</span>{' '}
+                    <span className={result.isCorrect ? 'text-green-600' : 'text-red-600'}>
+                      {result.userAnswer || 'Not answered'}
+                    </span>
+                  </p>
+                  {!result.isCorrect && (
+                    <p className="text-sm">
+                      <span className="font-medium">Correct Answer:</span>{' '}
+                      <span className="text-green-600">{result.correctAnswer}</span>
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Explanation */}
+              {result.explanation && (
+                <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                  <p className="text-sm font-medium text-blue-900 mb-1">Explanation:</p>
+                  <div className="text-sm text-blue-800">
+                    <LatexRenderer text={result.explanation} />
+                  </div>
+                  {result.explanationImageUrl && (
+                    <img
+                      src={result.explanationImageUrl}
+                      alt="Explanation"
+                      className="mt-2 max-w-full h-auto rounded-lg"
+                    />
+                  )}
+                </div>
+              )}
+            </CardBody>
+          </Card>
+        ))}
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex gap-3">
+        <Button
+          variant="outline"
+          onClick={() => router.push('/dashboard/mock-tests')}
+          className="flex-1"
+        >
+          Back to Mock Tests
+        </Button>
+        <Button
+          onClick={() => router.push('/dashboard')}
+          className="flex-1"
+        >
+          Back to Dashboard
+        </Button>
+      </div>
     </div>
   );
 }

@@ -78,8 +78,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <aside className="fixed top-0 left-0 z-40 w-64 h-screen bg-white border-r">
         <div className="h-full px-3 py-4 overflow-y-auto">
           <div className="flex items-center gap-3 mb-8 px-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-red-600 to-orange-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-xl">A</span>
+            <div className="w-10 h-10 flex items-center justify-center">
+              <img src="/logo.svg" alt="Zeta Exams Admin" className="w-full h-full" />
             </div>
             <div>
               <h1 className="text-xl font-bold text-red-600">Admin Panel</h1>
