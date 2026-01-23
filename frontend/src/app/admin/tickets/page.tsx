@@ -167,7 +167,17 @@ export default function AdminTicketsPage() {
                           }`}>
                             {ticket.subscriptionDetails.subscription.toUpperCase()}
                           </span>
+                          
+                          {/* 🔥 NEW: Show Subscription Type */}
+                          <span className={`px-2 py-0.5 rounded font-semibold text-xs ${
+                            ticket.subscriptionDetails.subscriptionType === 'giftcode'
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-purple-100 text-purple-700'
+                          }`}>
+                            {ticket.subscriptionDetails.subscriptionType === 'giftcode' ? '🎁 Gift' : '💳 Paid'}
+                          </span>
                         </div>
+                        
                         {ticket.subscriptionDetails.subscriptionStartTime && (
                           <p>
                             <span className="font-semibold">Started:</span>{' '}
@@ -276,6 +286,21 @@ export default function AdminTicketsPage() {
                       {selectedTicket.subscriptionDetails.subscription.toUpperCase()}
                     </p>
                   </div>
+                  
+                  {/* 🔥 NEW: Subscription Type */}
+                  <div>
+                    <p className="text-blue-700 font-medium">Type</p>
+                    <p className={`font-bold ${
+                      selectedTicket.subscriptionDetails.subscriptionType === 'giftcode'
+                        ? 'text-green-700'
+                        : 'text-purple-700'
+                    }`}>
+                      {selectedTicket.subscriptionDetails.subscriptionType === 'giftcode' 
+                        ? '🎁 Gift Code' 
+                        : '💳 Regular Payment'}
+                    </p>
+                  </div>
+                  
                   <div>
                     <p className="text-blue-700 font-medium">Status</p>
                     <p className={`font-bold ${

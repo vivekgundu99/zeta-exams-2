@@ -617,7 +617,7 @@ router.delete('/mock-tests/:testId', async (req, res) => {
 });
 
 // @route   GET /api/admin/users
-// @desc    Get all users
+// @desc    Get all users WITH FULL DETAILS
 // @access  Admin
 router.get('/users', async (req, res) => {
   try {
@@ -632,6 +632,7 @@ router.get('/users', async (req, res) => {
 
     const total = await User.countDocuments();
 
+    // 🔥 UPDATED: Include ALL user data fields
     const usersWithDetails = await Promise.all(users.map(async (user) => {
       const userData = await UserData.findOne({ userId: user.userId });
       const subscription = await Subscription.findOne({ userId: user.userId });
@@ -641,7 +642,12 @@ router.get('/users', async (req, res) => {
         email: user.email,
         phoneNumber: decryptPhone(user.phoneNumber),
         name: userData?.name,
+        profession: userData?.profession,       // 🔥 ADDED
+        grade: userData?.grade,                 // 🔥 ADDED
         exam: userData?.exam,
+        collegeName: userData?.collegeName,     // 🔥 ADDED
+        state: userData?.state,                 // 🔥 ADDED
+        lifeAmbition: userData?.lifeAmbition,   // 🔥 ADDED
         subscription: subscription?.subscription,
         subscriptionStatus: subscription?.subscriptionStatus,
         createdAt: user.createdAt
@@ -802,13 +808,13 @@ router.delete('/giftcodes/:code', async (req, res) => {
 // Add this to the existing admin.js file, replacing the tickets section
 
 // @route   GET /api/admin/tickets
-// @desc    Get all tickets with user subscription details
+// @desc    Get all tickets with user subscription details INCLUDING TYPE
 // @access  Admin
 router.get('/tickets', authenticate, isAdmin, async (req, res) => {
   try {
     const tickets = await Ticket.find().sort({ createdAt: -1 });
 
-    // Fetch subscription details for each ticket
+    // 🔥 UPDATED: Include subscriptionType
     const ticketsWithSubscription = await Promise.all(
       tickets.map(async (ticket) => {
         const subscription = await Subscription.findOne({ userId: ticket.userId });
@@ -816,7 +822,7 @@ router.get('/tickets', authenticate, isAdmin, async (req, res) => {
           ...ticket.toObject(),
           subscriptionDetails: subscription ? {
             subscription: subscription.subscription,
-            subscriptionType: subscription.subscriptionType,
+            subscriptionType: subscription.subscriptionType,      // 🔥 ADDED
             subscriptionStatus: subscription.subscriptionStatus,
             subscriptionStartTime: subscription.subscriptionStartTime,
             subscriptionEndTime: subscription.subscriptionEndTime,
