@@ -2,8 +2,6 @@ import axios from 'axios';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://zeta-exams-backend-2.vercel.app';
 
-console.log('API initialized with URL:', API_URL);
-
 const api = axios.create({
   baseURL: API_URL,
   headers: {
@@ -12,59 +10,46 @@ const api = axios.create({
   timeout: 30000,
 });
 
-// Request interceptor to add token
+// Request interceptor
 api.interceptors.request.use(
   (config) => {
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('token');
       
-      // FIX: Enhanced token validation and cleaning
       if (token && token !== 'null' && token !== 'undefined' && token.trim() !== '') {
         try {
-          // Remove any JSON parsing artifacts, quotes, or whitespace
           let cleanToken = token.trim();
           
-          // If token is JSON stringified, parse it
           if (cleanToken.startsWith('"') && cleanToken.endsWith('"')) {
             cleanToken = JSON.parse(cleanToken);
           }
           
-          // Remove any remaining quotes
           cleanToken = cleanToken.replace(/^["']|["']$/g, '').trim();
           
-          // Validate token format (should be a JWT-like string)
           if (cleanToken && cleanToken.length > 20 && !cleanToken.includes(' ')) {
             config.headers.Authorization = `Bearer ${cleanToken}`;
-            console.log('✅ Request with token to:', config.url);
           } else {
-            console.warn('⚠️ Invalid token format, removing from storage');
             localStorage.removeItem('token');
           }
         } catch (error) {
-          console.error('❌ Token processing error:', error);
           localStorage.removeItem('token');
         }
-      } else {
-        console.log('⚠️ Request without token to:', config.url);
       }
     }
     return config;
   },
-  (error) => {
-    console.error('❌ Request interceptor error:', error);
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Response interceptor for error handling
+// 🔥 UPDATED: Response interceptor with session handling
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     console.error('❌ API Error:', {
       url: error.config?.url,
-      method: error.config?.method,
       status: error.response?.status,
-      message: error.response?.data?.message || error.message,
+      code: error.response?.data?.code,
+      message: error.response?.data?.message,
     });
 
     if (!error.response) {
@@ -78,17 +63,30 @@ api.interceptors.response.use(
       });
     }
 
+    // 🔥 HANDLE SESSION EXPIRED (401 with SESSION_EXPIRED code)
     if (error.response?.status === 401) {
+      const errorCode = error.response?.data?.code;
       const currentPath = window.location.pathname;
       
-      if (!currentPath.includes('/login') && 
-          !currentPath.includes('/register') && 
-          currentPath !== '/' &&
-          currentPath !== '/forgot-password') {
+      // Don't redirect if already on auth pages
+      const isAuthPage = currentPath.includes('/login') || 
+                         currentPath.includes('/register') || 
+                         currentPath === '/' ||
+                         currentPath === '/forgot-password';
+
+      if (!isAuthPage) {
         if (typeof window !== 'undefined') {
           localStorage.removeItem('token');
           localStorage.removeItem('user');
           localStorage.removeItem('isAdmin');
+          
+          // 🔥 Show different messages based on error code
+          const message = errorCode === 'SESSION_EXPIRED' 
+            ? 'You have been logged in from another device.'
+            : 'Your session has expired. Please login again.';
+          
+          // Store message in sessionStorage to show on login page
+          sessionStorage.setItem('loginMessage', message);
           
           setTimeout(() => {
             window.location.href = '/';

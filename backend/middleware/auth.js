@@ -1,7 +1,8 @@
+// backend/middleware/auth.js - UPDATED WITH SESSION VERSION VALIDATION
 const { verifyToken } = require('../utils/jwt');
 const User = require('../models/User');
 
-// Authenticate user
+// 🔥 CRITICAL: Authenticate with session version validation
 const authenticate = async (req, res, next) => {
   try {
     console.log('🔐 Authentication Check:', {
@@ -10,52 +11,48 @@ const authenticate = async (req, res, next) => {
       hasAuthHeader: !!req.headers.authorization
     });
 
-    // Get token from header
     const authHeader = req.headers.authorization;
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.log('❌ No auth header or invalid format');
+      console.log('❌ No auth header');
       return res.status(401).json({
         success: false,
-        message: 'No token provided. Please login.'
+        message: 'No token provided. Please login.',
+        code: 'NO_TOKEN'
       });
     }
     
-    // FIX: Better token extraction - remove 'Bearer ' prefix, trim, and remove any quotes
     const token = authHeader.replace('Bearer ', '').trim().replace(/^["']|["']$/g, '');
     
-    // FIX: Check for invalid token values
-    if (!token || token === 'null' || token === 'undefined' || token === '') {
-      console.log('❌ Token is empty or invalid');
+    if (!token || token === 'null' || token === 'undefined') {
+      console.log('❌ Invalid token');
       return res.status(401).json({
         success: false,
-        message: 'No token provided. Please login.'
+        message: 'Invalid token. Please login.',
+        code: 'INVALID_TOKEN'
       });
     }
     
-    console.log('🔑 Token received (first 20 chars):', token.substring(0, 20) + '...');
-    
-    // Verify token
+    // Verify JWT
     let decoded;
     try {
       decoded = verifyToken(token);
-      console.log('✅ Token verified successfully:', {
+      console.log('✅ Token verified:', {
         userId: decoded.userId,
-        email: decoded.email,
-        isAdmin: decoded.isAdmin
+        sessionVersion: decoded.sessionVersion
       });
     } catch (error) {
       console.error('❌ Token verification failed:', error.message);
       return res.status(401).json({
         success: false,
-        message: 'Invalid or expired token. Please login again.',
-        error: error.message
+        message: 'Token expired or invalid. Please login again.',
+        code: 'TOKEN_EXPIRED'
       });
     }
     
-    // For admin users, skip user existence check
+    // Admin bypass
     if (decoded.isAdmin) {
-      console.log('👑 Admin user authenticated');
+      console.log('👑 Admin authenticated');
       req.user = {
         userId: decoded.userId,
         email: decoded.email,
@@ -64,21 +61,36 @@ const authenticate = async (req, res, next) => {
       return next();
     }
     
-    // Check if user exists (for regular users only)
-    console.log('👤 Checking regular user existence:', decoded.userId);
+    // 🔥 CRITICAL: Check user and validate sessionVersion
+    console.log('👤 Validating user and session version...');
     const user = await User.findOne({ userId: decoded.userId });
     
     if (!user) {
-      console.log('❌ User not found in database');
+      console.log('❌ User not found');
       return res.status(401).json({
         success: false,
-        message: 'User not found. Please login again.'
+        message: 'User not found. Please login again.',
+        code: 'USER_NOT_FOUND'
       });
     }
     
-    console.log('✅ User found and authenticated');
+    // 🔥 SESSION VERSION VALIDATION - THIS IS THE MAGIC
+    if (decoded.sessionVersion !== user.sessionVersion) {
+      console.log('❌ Session version mismatch:', {
+        tokenVersion: decoded.sessionVersion,
+        userVersion: user.sessionVersion
+      });
+      
+      return res.status(401).json({
+        success: false,
+        message: 'You have been logged in from another device. Please login again.',
+        code: 'SESSION_EXPIRED'
+      });
+    }
     
-    // Attach user info to request
+    console.log('✅ Session version validated');
+    
+    // Attach user to request
     req.user = {
       userId: decoded.userId,
       email: decoded.email,
@@ -91,27 +103,19 @@ const authenticate = async (req, res, next) => {
     return res.status(401).json({
       success: false,
       message: 'Authentication failed. Please login again.',
-      error: error.message
+      code: 'AUTH_FAILED'
     });
   }
 };
 
 // Check if user is admin
 const isAdmin = (req, res, next) => {
-  console.log('🔒 Admin check:', {
-    hasUser: !!req.user,
-    isAdmin: req.user?.isAdmin
-  });
-
   if (!req.user || !req.user.isAdmin) {
-    console.log('❌ Admin access denied');
     return res.status(403).json({
       success: false,
       message: 'Access denied. Admin privileges required.'
     });
   }
-  
-  console.log('✅ Admin access granted');
   next();
 };
 
@@ -119,29 +123,21 @@ const isAdmin = (req, res, next) => {
 const checkSubscription = (requiredPlan) => {
   return async (req, res, next) => {
     try {
-      console.log('📋 Subscription check for plan:', requiredPlan);
-
-      // Skip subscription check for admin
       if (req.user.isAdmin) {
-        console.log('✅ Admin - subscription check skipped');
         return next();
       }
 
       const Subscription = require('../models/Subscription');
-      
       const subscription = await Subscription.findOne({ userId: req.user.userId });
       
       if (!subscription) {
-        console.log('❌ No subscription found');
         return res.status(403).json({
           success: false,
           message: 'No active subscription found.'
         });
       }
       
-      // Check if subscription is expired
       if (subscription.isExpired()) {
-        console.log('⚠️ Subscription expired');
         subscription.subscriptionStatus = 'inactive';
         subscription.subscription = 'free';
         await subscription.save();
@@ -152,13 +148,11 @@ const checkSubscription = (requiredPlan) => {
         });
       }
       
-      // Check subscription level
       const planHierarchy = { free: 0, silver: 1, gold: 2 };
       const userPlanLevel = planHierarchy[subscription.subscription];
       const requiredPlanLevel = planHierarchy[requiredPlan];
       
       if (userPlanLevel < requiredPlanLevel) {
-        console.log('❌ Insufficient subscription level');
         return res.status(403).json({
           success: false,
           message: `This feature requires ${requiredPlan} subscription.`,
@@ -167,11 +161,9 @@ const checkSubscription = (requiredPlan) => {
         });
       }
       
-      console.log('✅ Subscription check passed');
       req.subscription = subscription;
       next();
     } catch (error) {
-      console.error('💥 Subscription check error:', error);
       return res.status(500).json({
         success: false,
         message: 'Error checking subscription',

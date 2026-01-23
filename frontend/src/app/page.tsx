@@ -24,15 +24,22 @@ export default function LoginPage() {
     register,
     handleSubmit,
     formState: { errors },
-    getValues,
   } = useForm<LoginFormData>();
 
-  // Check if already logged in
+  /* ------------------------------------------------------------------
+     🔥 NEW: SESSION MESSAGE + AUTO REDIRECT
+  -------------------------------------------------------------------*/
   useEffect(() => {
+    const message = sessionStorage.getItem('loginMessage');
+    if (message) {
+      toast.error(message, { duration: 5000 });
+      sessionStorage.removeItem('loginMessage');
+    }
+
     const token = storage.get('token');
     const user = storage.get('user');
     const isAdminStored = storage.get('isAdmin');
-    
+
     if (token && user) {
       if (isAdminStored) {
         router.push('/admin');
@@ -46,6 +53,9 @@ export default function LoginPage() {
     }
   }, [router]);
 
+  /* ------------------------------------------------------------------
+     LOGIN SUBMIT
+  -------------------------------------------------------------------*/
   const onSubmit = async (data: LoginFormData) => {
     try {
       setIsLoading(true);
@@ -56,18 +66,15 @@ export default function LoginPage() {
       });
 
       if (response.data.success) {
-        // CRITICAL FIX: Store token directly without JSON.stringify
-        const token = response.data.token;
-        storage.set('token', token); // Now stores as plain string
+        storage.set('token', response.data.token);
         storage.set('isAdmin', response.data.isAdmin || false);
-        
+
         if (response.data.user) {
           storage.set('user', response.data.user);
         }
 
         toast.success('Login successful!');
 
-        // Navigate based on user type and status
         if (response.data.isAdmin) {
           router.push('/admin');
         } else if (!response.data.user?.userDetails) {
@@ -80,40 +87,33 @@ export default function LoginPage() {
       }
     } catch (error: any) {
       console.error('Login error:', error);
-      
-      if (error.response?.data?.code === 'ALREADY_LOGGED_IN') {
-        const confirm = window.confirm(
-          'Already logged in from another device. Logout from all devices?'
-        );
-
-        if (confirm) {
-          try {
-            await authAPI.logoutAll(getValues('email'));
-            toast.success('Logged out from all devices. Please login again.');
-          } catch {
-            toast.error('Failed to logout from other devices');
-          }
-        }
-      } else {
-        const errorMessage = error.response?.data?.message || 'Login failed';
-        toast.error(errorMessage);
-      }
+      toast.error(error.response?.data?.message || 'Login failed');
     } finally {
       setIsLoading(false);
     }
   };
 
+  /* ------------------------------------------------------------------
+     RENDER
+  -------------------------------------------------------------------*/
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-indigo-50 flex items-center justify-center p-4">
-      {/* Background decorations */}
+
+      {/* BACKGROUND DECORATIONS */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob"></div>
         <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-indigo-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000"></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-pink-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-4000"></div>
+        <div className="absolute top-1/2 left-1/2 transform 
+          -translate-x-1/2 -translate-y-1/2 
+          w-80 h-80 bg-pink-300 rounded-full 
+          mix-blend-multiply filter blur-xl opacity-20 
+          animate-blob animation-delay-4000">
+        </div>
       </div>
 
       <div className="max-w-md w-full relative z-10">
-        {/* Logo/Brand */}
+
+        {/* LOGO / BRAND */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl shadow-lg shadow-purple-500/50 mb-4">
             <span className="text-3xl font-bold text-white">Z</span>
@@ -121,12 +121,27 @@ export default function LoginPage() {
           <h1 className="text-4xl font-bold text-gradient mb-2">
             Welcome Back!
           </h1>
-          <p className="text-gray-600">Login to continue your preparation</p>
+          <p className="text-gray-600">
+            Login to continue your preparation
+          </p>
         </div>
 
-        {/* Login Form Card */}
+        {/* 🔒 SESSION INFO */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 text-sm">
+          <p className="text-blue-900 font-semibold mb-2">
+            🔒 Security Feature
+          </p>
+          <p className="text-blue-800">
+            You can only be logged in on one device at a time.
+            Logging in here will automatically log you out from other devices.
+          </p>
+        </div>
+
+        {/* LOGIN FORM CARD */}
         <div className="bg-white rounded-2xl shadow-2xl p-8 backdrop-blur-sm bg-opacity-90">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+
+            {/* EMAIL */}
             <Input
               label="Email Address"
               type="email"
@@ -140,22 +155,16 @@ export default function LoginPage() {
               })}
               error={errors.email?.message}
               leftIcon={
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"
-                  />
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5
+                       a2.5 2.5 0 005 0V12a9 9 0 10-9 9
+                       m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
                 </svg>
               }
             />
 
+            {/* PHONE */}
             {!isAdmin && (
               <Input
                 label="Phone Number"
@@ -171,23 +180,21 @@ export default function LoginPage() {
                 error={errors.phoneNumber?.message}
                 helperText="10-digit Indian mobile number"
                 leftIcon={
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
-                    />
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498
+                         4.493a1 1 0 01-.502 1.21l-2.257
+                         1.13a11.042 11.042 0 005.516
+                         5.516l1.13-2.257a1 1 0 011.21-.502
+                         l4.493 1.498a1 1 0 01.684.949V19
+                         a2 2 0 01-2 2h-1C9.716 21 3 14.284
+                         3 6V5z" />
                   </svg>
                 }
               />
             )}
 
+            {/* PASSWORD */}
             <Input
               label="Password"
               type="password"
@@ -201,22 +208,17 @@ export default function LoginPage() {
               })}
               error={errors.password?.message}
               leftIcon={
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                  />
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M12 15v2m-6 4h12a2 2 0 002-2
+                       v-6a2 2 0 00-2-2H6a2 2 0 00-2
+                       2v6a2 2 0 002 2zm10-10V7
+                       a4 4 0 00-8 0v4h8z" />
                 </svg>
               }
             />
 
+            {/* OPTIONS */}
             <div className="flex items-center justify-between">
               <label className="flex items-center cursor-pointer group">
                 <input
@@ -239,14 +241,16 @@ export default function LoginPage() {
               </button>
             </div>
 
+            {/* SUBMIT */}
             <Button type="submit" fullWidth isLoading={isLoading} size="lg">
               {isLoading ? 'Logging in...' : 'Login'}
             </Button>
           </form>
 
+          {/* REGISTER */}
           <div className="mt-6 text-center">
             <p className="text-gray-600">
-              Don't have an account?{' '}
+              Don&apos;t have an account?{' '}
               <button
                 onClick={() => router.push('/register')}
                 className="text-purple-600 hover:text-purple-700 font-semibold transition-colors"
@@ -257,7 +261,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Footer */}
+        {/* FOOTER */}
         <p className="text-center mt-6 text-gray-500 text-sm">
           © 2026 Zeta Exams. All rights reserved.
         </p>

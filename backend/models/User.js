@@ -1,3 +1,4 @@
+// backend/models/User.js - UPDATED WITH SESSION VERSION
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
@@ -18,14 +19,25 @@ const userSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
+  
+  // 🔥 SESSION VERSION - KEY FIELD FOR SINGLE DEVICE LOGIN
+  sessionVersion: {
+    type: Number,
+    default: 0,
+    required: true
+  },
+  
+  // Deprecated - no longer used for login control
   loginStatus: {
     type: Boolean,
     default: false
   },
+  
   lastLoginTime: {
     type: Date,
     default: null
   },
+  
   createdAt: {
     type: Date,
     default: Date.now
