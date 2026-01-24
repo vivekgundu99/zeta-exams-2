@@ -374,4 +374,56 @@ router.get('/result/:attemptId', authenticate, async (req, res) => {
   }
 });
 
+// 🔥 NEW: Abandon ongoing test (for old tests)
+router.post('/abandon', authenticate, async (req, res) => {
+  try {
+    const { attemptId } = req.body;
+
+    console.log('🗑️ Abandoning test:', attemptId);
+
+    const attempt = await MockTestAttempt.findById(attemptId);
+
+    if (!attempt) {
+      return res.status(404).json({
+        success: false,
+        message: 'Test attempt not found'
+      });
+    }
+
+    if (attempt.userId !== req.user.userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized'
+      });
+    }
+
+    if (attempt.status !== 'ongoing') {
+      return res.status(400).json({
+        success: false,
+        message: 'Test is not ongoing'
+      });
+    }
+
+    // Mark as abandoned
+    attempt.status = 'abandoned';
+    attempt.endTime = new Date();
+    await attempt.save();
+
+    console.log('✅ Test abandoned successfully');
+
+    res.json({
+      success: true,
+      message: 'Test abandoned successfully'
+    });
+
+  } catch (error) {
+    console.error('💥 Abandon test error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;

@@ -1,4 +1,4 @@
-// frontend/src/contexts/ThemeContext.tsx
+// frontend/src/contexts/ThemeContext.tsx - FIXED DEFAULT THEME
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
@@ -14,15 +14,15 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
+  // 🔥 FIXED: Default to 'light' theme
   const [theme, setThemeState] = useState<Theme>('light');
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    // Get theme from localStorage or system preference
+    // Get theme from localStorage, or default to 'light' (NOT system preference)
     const savedTheme = localStorage.getItem('theme') as Theme;
-    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    const initialTheme = savedTheme || systemTheme;
+    const initialTheme = savedTheme || 'light'; // 🔥 FIXED: Always default to light
     setThemeState(initialTheme);
     document.documentElement.classList.toggle('dark', initialTheme === 'dark');
   }, []);

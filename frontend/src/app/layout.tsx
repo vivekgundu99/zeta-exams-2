@@ -1,4 +1,4 @@
-// frontend/src/app/layout.tsx - UPDATED
+// frontend/src/app/layout.tsx - FIXED DEFAULT THEME
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import { Toaster } from 'react-hot-toast'
@@ -27,8 +27,8 @@ export default function RootLayout({
             __html: `
               try {
                 const theme = localStorage.getItem('theme');
-                const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-                const initialTheme = theme || systemTheme;
+                // 🔥 FIXED: Default to light theme, not system preference
+                const initialTheme = theme || 'light';
                 if (initialTheme === 'dark') {
                   document.documentElement.classList.add('dark');
                 }

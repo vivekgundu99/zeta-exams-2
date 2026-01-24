@@ -1,4 +1,4 @@
-/* frontend/src/app/globals.css - UPDATED */
+/* frontend/src/app/globals.css - IMPROVED DARK THEME */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -10,6 +10,7 @@
     --foreground: 222.2 84% 4.9%;
   }
 
+  /* 🔥 IMPROVED DARK THEME with better contrast */
   .dark {
     --border: 217.2 32.6% 17.5%;
     --background: 222.2 84% 4.9%;
@@ -31,11 +32,54 @@
   svg {
     @apply inline-block;
   }
+
+  /* 🔥 NEW: Ensure all headings are visible in dark mode */
+  .dark h1,
+  .dark h2,
+  .dark h3,
+  .dark h4,
+  .dark h5,
+  .dark h6 {
+    @apply text-gray-100;
+  }
+
+  /* 🔥 NEW: Better paragraph visibility in dark mode */
+  .dark p {
+    @apply text-gray-300;
+  }
+
+  /* 🔥 NEW: Better link visibility in dark mode */
+  .dark a {
+    @apply text-purple-400 hover:text-purple-300;
+  }
+
+  /* 🔥 NEW: Better label visibility in dark mode */
+  .dark label {
+    @apply text-gray-200;
+  }
+
+  /* 🔥 NEW: Better table text in dark mode */
+  .dark table {
+    @apply text-gray-200;
+  }
+
+  .dark th {
+    @apply text-gray-100;
+  }
+
+  .dark td {
+    @apply text-gray-300;
+  }
 }
 
 @layer utilities {
   .text-gradient {
     @apply bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent;
+  }
+
+  /* 🔥 IMPROVED: Dark mode gradient */
+  .dark .text-gradient {
+    @apply bg-gradient-to-r from-purple-400 to-indigo-400 bg-clip-text text-transparent;
   }
   
   .card-gradient {
@@ -114,9 +158,9 @@
   margin: 1em 0;
 }
 
-/* Dark mode katex support */
+/* 🔥 IMPROVED: Dark mode katex support with better contrast */
 .dark .katex {
-  color: #e5e7eb;
+  color: #f3f4f6;
 }
 
 /* Blob animation */
@@ -145,4 +189,55 @@
 
 .animation-delay-4000 {
   animation-delay: 4s;
+}
+
+/* 🔥 NEW: Better card visibility in dark mode */
+.dark .bg-white {
+  @apply bg-gray-800;
+}
+
+.dark .bg-gray-50 {
+  @apply bg-gray-900;
+}
+
+.dark .bg-gray-100 {
+  @apply bg-gray-800;
+}
+
+/* 🔥 NEW: Better border visibility in dark mode */
+.dark .border-gray-200 {
+  @apply border-gray-700;
+}
+
+.dark .border-gray-300 {
+  @apply border-gray-600;
+}
+
+/* 🔥 NEW: Better hover states in dark mode */
+.dark .hover\:bg-gray-100:hover {
+  @apply bg-gray-700;
+}
+
+.dark .hover\:bg-gray-50:hover {
+  @apply bg-gray-800;
+}
+
+/* 🔥 NEW: Better focus states in dark mode */
+.dark .focus\:border-gray-400:focus {
+  @apply border-gray-500;
+}
+
+/* 🔥 NEW: Better disabled states in dark mode */
+.dark .disabled\:bg-gray-100:disabled {
+  @apply bg-gray-700;
+}
+
+/* 🔥 NEW: Better placeholder text in dark mode */
+.dark ::placeholder {
+  @apply text-gray-500;
+}
+
+/* 🔥 NEW: Better selection in dark mode */
+.dark ::selection {
+  @apply bg-purple-600 text-white;
 }

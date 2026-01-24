@@ -1,4 +1,4 @@
-// frontend/src/app/dashboard/mock-tests/page.tsx - UPDATED with Ongoing Test Tab
+// frontend/src/app/dashboard/mock-tests/page.tsx - FIXED AUTO-ABANDON
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -12,7 +12,7 @@ import { formatDate } from '@/lib/utils';
 
 export default function MockTestsPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState('all'); // 'all', 'ongoing', 'attempted', 'unattempted'
+  const [activeTab, setActiveTab] = useState('all');
   const [tests, setTests] = useState<any[]>([]);
   const [attempts, setAttempts] = useState<any[]>([]);
   const [examType, setExamType] = useState('');
@@ -44,15 +44,26 @@ export default function MockTestsPage() {
 
           const attemptsResponse = await mockTestsAPI.getAttempts();
           if (attemptsResponse.data.success) {
-            setAttempts(attemptsResponse.data.attempts || []);
+            const allAttempts = attemptsResponse.data.attempts || [];
+            setAttempts(allAttempts);
             
-            const ongoing = attemptsResponse.data.attempts?.find(
-              (a: any) => a.status === 'ongoing'
-            );
-            setOngoingTest(ongoing);
+            const ongoing = allAttempts.find((a: any) => a.status === 'ongoing');
             
-            // 🔥 NEW: Auto switch to ongoing tab if test exists
+            // 🔥 NEW: Auto-abandon if ongoing test is older than 4 hours
             if (ongoing) {
+              const testStartTime = new Date(ongoing.startTime).getTime();
+              const now = new Date().getTime();
+              const hoursPassed = (now - testStartTime) / (1000 * 60 * 60);
+              
+              if (hoursPassed > 4) {
+                console.log('⚠️ Auto-abandoning old test (>4 hours)');
+                await abandonOldTest(ongoing._id);
+                // Reload data after abandoning
+                setTimeout(() => loadData(), 1000);
+                return;
+              }
+              
+              setOngoingTest(ongoing);
               setActiveTab('ongoing');
             }
           }
@@ -62,6 +73,28 @@ export default function MockTestsPage() {
       console.error('Failed to load mock tests');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 🔥 NEW: Abandon old ongoing tests
+  const abandonOldTest = async (attemptId: string) => {
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://zeta-exams-backend-2.vercel.app';
+      const response = await fetch(`${API_URL}/api/mock-tests/abandon`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({ attemptId }),
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        toast.success('Old test automatically abandoned');
+      }
+    } catch (error) {
+      console.error('Failed to abandon test:', error);
     }
   };
 
@@ -112,7 +145,6 @@ export default function MockTestsPage() {
     );
   }
 
-  // Filter tests based on active tab
   let displayTests = tests;
   if (activeTab === 'attempted') {
     const attemptedTestIds = attempts
@@ -128,13 +160,13 @@ export default function MockTestsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Mock Tests</h1>
-          <p className="text-gray-600">Full-length practice tests</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Mock Tests</h1>
+          <p className="text-gray-600 dark:text-gray-400">Full-length practice tests</p>
         </div>
       </div>
 
-      {/* 🔥 NEW: Tab Navigation */}
-      <div className="flex gap-2 border-b border-gray-200">
+      {/* Tab Navigation */}
+      <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700">
         {[
           { value: 'all', label: 'All Tests' },
           { value: 'ongoing', label: '⏱️ Ongoing', badge: ongoingTest ? '1' : null },
@@ -148,7 +180,7 @@ export default function MockTestsPage() {
             className={`px-4 py-2 font-medium transition-colors relative ${
               activeTab === tab.value
                 ? 'text-purple-600 border-b-2 border-purple-600'
-                : 'text-gray-600 hover:text-gray-900 disabled:text-gray-300'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 disabled:text-gray-300 dark:disabled:text-gray-600'
             }`}
           >
             {tab.label}
@@ -161,30 +193,30 @@ export default function MockTestsPage() {
         ))}
       </div>
 
-      {/* 🔥 NEW: Ongoing Test Tab */}
+      {/* Ongoing Test Tab */}
       {activeTab === 'ongoing' && ongoingTest && (
-        <Card className="border-2 border-orange-200 bg-orange-50">
+        <Card className="border-2 border-orange-200 bg-orange-50 dark:bg-orange-900/20 dark:border-orange-800">
           <CardBody className="p-8">
             <div className="flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="flex items-center gap-6 flex-1">
-                <div className="w-20 h-20 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <div className="w-20 h-20 bg-orange-100 dark:bg-orange-800 rounded-lg flex items-center justify-center flex-shrink-0">
                   <span className="text-4xl">⏱️</span>
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-2xl font-bold text-orange-900 mb-2">
+                  <h3 className="text-2xl font-bold text-orange-900 dark:text-orange-100 mb-2">
                     Ongoing Test
                   </h3>
-                  <p className="text-lg text-orange-800 mb-1">
+                  <p className="text-lg text-orange-800 dark:text-orange-200 mb-1">
                     {ongoingTest.testName}
                   </p>
-                  <p className="text-sm text-orange-700">
+                  <p className="text-sm text-orange-700 dark:text-orange-300">
                     Started: {new Date(ongoingTest.startTime).toLocaleString()}
                   </p>
                   <div className="mt-3 flex gap-2">
-                    <span className="px-3 py-1 bg-orange-200 text-orange-900 rounded-full text-sm font-semibold">
+                    <span className="px-3 py-1 bg-orange-200 dark:bg-orange-800 text-orange-900 dark:text-orange-100 rounded-full text-sm font-semibold">
                       {ongoingTest.examType.toUpperCase()}
                     </span>
-                    <span className="px-3 py-1 bg-orange-200 text-orange-900 rounded-full text-sm font-semibold">
+                    <span className="px-3 py-1 bg-orange-200 dark:bg-orange-800 text-orange-900 dark:text-orange-100 rounded-full text-sm font-semibold">
                       {ongoingTest.totalQuestions} Questions
                     </span>
                   </div>
@@ -209,13 +241,13 @@ export default function MockTestsPage() {
           {displayTests.length === 0 ? (
             <Card>
               <CardBody className="py-12 text-center">
-                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
                   <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">No Tests Found</h3>
-                <p className="text-gray-600">No {activeTab} mock tests available</p>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">No Tests Found</h3>
+                <p className="text-gray-600 dark:text-gray-400">No {activeTab} mock tests available</p>
               </CardBody>
             </Card>
           ) : (
@@ -231,15 +263,15 @@ export default function MockTestsPage() {
                           <span className="text-2xl">🎯</span>
                         </div>
                         {attempt && (
-                          <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-semibold">
+                          <span className="px-2 py-1 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-100 text-xs rounded-full font-semibold">
                             ✓ Attempted
                           </span>
                         )}
                       </div>
 
-                      <h3 className="font-bold text-gray-900 mb-2">{test.testName}</h3>
+                      <h3 className="font-bold text-gray-900 dark:text-gray-100 mb-2">{test.testName}</h3>
                       
-                      <div className="space-y-2 mb-4 text-sm text-gray-600">
+                      <div className="space-y-2 mb-4 text-sm text-gray-600 dark:text-gray-400">
                         <div className="flex items-center gap-2">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -255,12 +287,12 @@ export default function MockTestsPage() {
                       </div>
 
                       {attempt && (
-                        <div className="bg-gray-50 p-3 rounded-lg mb-4">
-                          <p className="text-sm text-gray-600 mb-1">Best Score:</p>
-                          <p className="text-lg font-bold text-purple-600">
+                        <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg mb-4">
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Best Score:</p>
+                          <p className="text-lg font-bold text-purple-600 dark:text-purple-400">
                             {attempt.score} / {attempt.totalQuestions * 4}
                           </p>
-                          <p className="text-xs text-gray-500">
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
                             Accuracy: {attempt.accuracy}%
                           </p>
                         </div>
