@@ -1,3 +1,4 @@
+// frontend/src/components/ui/Button.tsx - UPDATED
 'use client';
 
 import { ButtonHTMLAttributes, FC } from 'react';
@@ -25,19 +26,19 @@ const Button: FC<ButtonProps> = ({
   ...props
 }) => {
   const baseStyles =
-    'font-medium rounded-lg transition-all duration-200 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
+    'font-medium rounded-lg transition-all duration-200 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed';
 
   const variants = {
     primary:
-      'bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700 shadow-lg shadow-purple-500/50 hover:shadow-xl hover:shadow-purple-500/60 focus:ring-purple-500',
+      'bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700 shadow-lg shadow-purple-500/50 dark:shadow-purple-500/30 hover:shadow-xl hover:shadow-purple-500/60 dark:hover:shadow-purple-500/40 focus:ring-purple-500',
     secondary:
-      'bg-gray-200 text-gray-900 hover:bg-gray-300 focus:ring-gray-400',
+      'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600 focus:ring-gray-400',
     danger:
-      'bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-500/50 focus:ring-red-500',
+      'bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-500/50 dark:shadow-red-500/30 focus:ring-red-500',
     outline:
-      'border-2 border-purple-600 text-purple-600 hover:bg-purple-50 focus:ring-purple-500',
+      'border-2 border-purple-600 dark:border-purple-500 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 focus:ring-purple-500',
     ghost:
-      'text-purple-600 hover:bg-purple-50 focus:ring-purple-500',
+      'text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 focus:ring-purple-500',
   };
 
   const sizes = {

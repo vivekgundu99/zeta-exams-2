@@ -1,3 +1,4 @@
+// frontend/src/app/dashboard/layout.tsx - UPDATED
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -6,6 +7,7 @@ import Link from 'next/link';
 import { storage } from '@/lib/utils';
 import { authAPI, userAPI } from '@/lib/api';
 import { toast } from 'react-hot-toast';
+import ThemeToggle from '@/components/ui/ThemeToggle';
 
 export default function DashboardLayout({
   children,
@@ -138,20 +140,20 @@ export default function DashboardLayout({
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Mobile Menu Button */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-white shadow-lg"
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-white dark:bg-gray-800 shadow-lg"
       >
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-6 h-6 text-gray-800 dark:text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
         </svg>
       </button>
@@ -159,7 +161,8 @@ export default function DashboardLayout({
       {/* Sidebar */}
       <aside
         className={`
-          fixed top-0 left-0 z-40 w-64 h-screen transition-transform bg-white border-r border-gray-200
+          fixed top-0 left-0 z-40 w-64 h-screen transition-transform 
+          bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:translate-x-0
         `}
@@ -172,19 +175,21 @@ export default function DashboardLayout({
             </div>
             <div>
               <h1 className="text-xl font-bold text-gradient">Zeta Exams</h1>
-              <p className="text-xs text-gray-500">{subscription?.exam?.toUpperCase()}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {subscription?.exam?.toUpperCase()}
+              </p>
             </div>
           </div>
 
           {/* User Info */}
-          <div className="mb-6 p-3 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg">
-            <p className="text-sm font-semibold text-gray-900">{user?.name}</p>
+          <div className="mb-6 p-3 bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-lg">
+            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{user?.name}</p>
             <div className="flex items-center gap-2 mt-1">
               <span className="px-2 py-0.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-xs rounded-full font-semibold">
                 {subscription?.subscription?.toUpperCase()}
               </span>
-              {subscription?.subscriptionEndTime && (
-                <span className="text-xs text-gray-600">
+              {subscription?.subscriptionEndTime && subscription.subscription !== 'free' && (
+                <span className="text-xs text-gray-600 dark:text-gray-400">
                   Valid till {new Date(subscription.subscriptionEndTime).toLocaleDateString()}
                 </span>
               )}
@@ -201,7 +206,7 @@ export default function DashboardLayout({
                   flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all
                   ${pathname === item.href
                     ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg'
-                    : 'text-gray-700 hover:bg-gray-100'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                   }
                 `}
               >
@@ -215,7 +220,7 @@ export default function DashboardLayout({
           {/* Logout Button */}
           <button
             onClick={handleLogout}
-            className="w-full mt-6 flex items-center gap-3 px-3 py-2.5 text-red-600 hover:bg-red-50 rounded-lg transition-all"
+            className="w-full mt-6 flex items-center gap-3 px-3 py-2.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -228,13 +233,14 @@ export default function DashboardLayout({
       {/* Main Content */}
       <div className="lg:ml-64">
         {/* Top Navbar */}
-        <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
+        <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-30">
           <div className="px-4 py-3 flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-gray-900 ml-12 lg:ml-0">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 ml-12 lg:ml-0">
               {menuItems.find((item) => item.href === pathname)?.label || 'Dashboard'}
             </h2>
             
             <div className="flex items-center gap-4">
+              <ThemeToggle />
               <Link
                 href="/subscription"
                 className="hidden sm:block px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:shadow-lg transition-all text-sm font-medium"

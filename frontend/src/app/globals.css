@@ -1,3 +1,4 @@
+/* frontend/src/app/globals.css - UPDATED */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,6 +6,14 @@
 @layer base {
   :root {
     --border: 214.3 31.8% 91.4%;
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+  }
+
+  .dark {
+    --border: 217.2 32.6% 17.5%;
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
   }
 
   * {
@@ -16,10 +25,9 @@
   }
   
   body {
-    @apply bg-gray-50 text-gray-900 antialiased;
+    @apply bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 antialiased transition-colors duration-200;
   }
   
-  /* Fix SVG icon sizes */
   svg {
     @apply inline-block;
   }
@@ -31,11 +39,15 @@
   }
   
   .card-gradient {
-    @apply bg-gradient-to-br from-purple-50 to-indigo-50;
+    @apply bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20;
   }
   
   .shadow-glow {
     box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
+  }
+
+  .dark .shadow-glow {
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.5);
   }
 }
 
@@ -46,16 +58,15 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  @apply bg-gray-100 dark:bg-gray-800;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #8b5cf6;
-  border-radius: 4px;
+  @apply bg-purple-500 dark:bg-purple-600 rounded;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #7c3aed;
+  @apply bg-purple-600 dark:bg-purple-700;
 }
 
 /* Animations */
@@ -80,9 +91,18 @@
   background-size: 1000px 100%;
 }
 
-/* Loading skeleton */
+.dark .animate-shimmer {
+  background: linear-gradient(
+    to right,
+    #1f2937 0%,
+    #374151 20%,
+    #1f2937 40%,
+    #1f2937 100%
+  );
+}
+
 .skeleton {
-  @apply animate-shimmer bg-gray-200 rounded;
+  @apply animate-shimmer bg-gray-200 dark:bg-gray-700 rounded;
 }
 
 /* Katex override */
@@ -94,7 +114,12 @@
   margin: 1em 0;
 }
 
-/* Blob animation for login page */
+/* Dark mode katex support */
+.dark .katex {
+  color: #e5e7eb;
+}
+
+/* Blob animation */
 @keyframes blob {
   0% {
     transform: translate(0px, 0px) scale(1);

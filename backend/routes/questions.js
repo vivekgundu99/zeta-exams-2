@@ -154,7 +154,7 @@ router.get('/:questionId', authenticate, async (req, res) => {
       questionId: questionId
     });
 
-    // Check limits
+    // 🔥 UPDATED: Count ALL questions, not just unattempted
     let limits = await Limits.findOne({ userId: req.user.userId });
     
     if (!limits) {
@@ -189,20 +189,21 @@ router.get('/:questionId', authenticate, async (req, res) => {
       await limits.save();
     }
 
-    // Only increment if not already attempted
-    if (!attempt) {
-      const limitStatus = limits.checkLimits();
-      if (limitStatus.questions.reached) {
-        return res.status(403).json({
-          success: false,
-          message: 'Daily question limit reached',
-          limit: limitStatus.questions
-        });
-      }
-
-      limits.questionCount += 1;
-      await limits.save();
+    // 🔥 CHANGED: Always increment count (both attempted and unattempted)
+    const limitStatus = limits.checkLimits();
+    if (limitStatus.questions.reached) {
+      return res.status(403).json({
+        success: false,
+        message: 'Daily question limit reached',
+        limit: limitStatus.questions
+      });
     }
+
+    // Increment count EVERY time a question is viewed
+    limits.questionCount += 1;
+    await limits.save();
+
+    console.log(`📊 Question count incremented: ${limits.questionCount}`);
 
     res.json({
       success: true,
@@ -287,5 +288,4 @@ router.post('/submit-answer', authenticate, async (req, res) => {
     });
   }
 });
-
 module.exports = router;

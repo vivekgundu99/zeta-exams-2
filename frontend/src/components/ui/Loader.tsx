@@ -1,3 +1,4 @@
+// frontend/src/components/ui/Loader.tsx - UPDATED
 'use client';
 
 import { FC } from 'react';
@@ -18,16 +19,16 @@ const Loader: FC<LoaderProps> = ({ size = 'md', fullScreen = false, text }) => {
   const loader = (
     <div className="flex flex-col items-center justify-center gap-4">
       <div className={`${sizes[size]} relative`}>
-        <div className="absolute inset-0 rounded-full border-4 border-purple-200"></div>
-        <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-purple-600 animate-spin"></div>
+        <div className="absolute inset-0 rounded-full border-4 border-purple-200 dark:border-purple-900"></div>
+        <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-purple-600 dark:border-t-purple-400 animate-spin"></div>
       </div>
-      {text && <p className="text-gray-600 font-medium">{text}</p>}
+      {text && <p className="text-gray-600 dark:text-gray-400 font-medium">{text}</p>}
     </div>
   );
 
   if (fullScreen) {
     return (
-      <div className="fixed inset-0 bg-white bg-opacity-90 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="fixed inset-0 bg-white dark:bg-gray-900 bg-opacity-90 dark:bg-opacity-90 backdrop-blur-sm flex items-center justify-center z-50">
         {loader}
       </div>
     );

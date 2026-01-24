@@ -1,3 +1,4 @@
+// frontend/tailwind.config.ts - UPDATED
 import type { Config } from 'tailwindcss'
 
 const config: Config = {
@@ -6,6 +7,7 @@ const config: Config = {
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
+  darkMode: 'class', // Enable class-based dark mode
   theme: {
     extend: {
       colors: {

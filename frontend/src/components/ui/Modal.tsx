@@ -1,3 +1,4 @@
+// frontend/src/components/ui/Modal.tsx - UPDATED
 'use client';
 
 import { Fragment, FC, ReactNode } from 'react';
@@ -40,7 +41,7 @@ const Modal: FC<ModalProps> = ({
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm" />
+          <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 backdrop-blur-sm" />
         </Transition.Child>
 
         <div className="fixed inset-0 overflow-y-auto">
@@ -56,7 +57,7 @@ const Modal: FC<ModalProps> = ({
             >
               <Dialog.Panel
                 className={cn(
-                  'w-full transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all',
+                  'w-full transform overflow-hidden rounded-2xl bg-white dark:bg-gray-800 p-6 text-left align-middle shadow-xl transition-all',
                   sizes[size]
                 )}
               >
@@ -65,7 +66,7 @@ const Modal: FC<ModalProps> = ({
                     {title && (
                       <Dialog.Title
                         as="h3"
-                        className="text-xl font-semibold text-gray-900"
+                        className="text-xl font-semibold text-gray-900 dark:text-gray-100"
                       >
                         {title}
                       </Dialog.Title>
@@ -73,10 +74,10 @@ const Modal: FC<ModalProps> = ({
                     {showClose && (
                       <button
                         onClick={onClose}
-                        className="rounded-lg p-1 hover:bg-gray-100 transition-colors"
+                        className="rounded-lg p-1 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                       >
                         <svg
-                          className="w-6 h-6 text-gray-500"
+                          className="w-6 h-6 text-gray-500 dark:text-gray-400"
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
@@ -92,7 +93,7 @@ const Modal: FC<ModalProps> = ({
                     )}
                   </div>
                 )}
-                <div>{children}</div>
+                <div className="text-gray-700 dark:text-gray-300">{children}</div>
               </Dialog.Panel>
             </Transition.Child>
           </div>

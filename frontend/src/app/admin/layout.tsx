@@ -1,3 +1,4 @@
+// frontend/src/app/admin/layout.tsx - UPDATED
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -6,6 +7,7 @@ import Link from 'next/link';
 import { storage } from '@/lib/utils';
 import { authAPI } from '@/lib/api';
 import { toast } from 'react-hot-toast';
+import ThemeToggle from '@/components/ui/ThemeToggle';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -21,10 +23,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const token = storage.get('token');
     const isAdmin = storage.get('isAdmin');
     
-    console.log('Admin layout check:', { hasToken: !!token, isAdmin });
-    
     if (!token || !isAdmin) {
-      console.log('Not authenticated as admin, redirecting...');
       router.push('/');
       return;
     }
@@ -60,29 +59,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
+          <p className="text-gray-600 dark:text-gray-400">Loading...</p>
         </div>
       </div>
     );
   }
 
-  if (!isAuthenticated) {
-    return null;
-  }
+  if (!isAuthenticated) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <aside className="fixed top-0 left-0 z-40 w-64 h-screen bg-white border-r">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <aside className="fixed top-0 left-0 z-40 w-64 h-screen bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
         <div className="h-full px-3 py-4 overflow-y-auto">
           <div className="flex items-center gap-3 mb-8 px-3">
             <div className="w-10 h-10 flex items-center justify-center">
               <img src="/logo.svg" alt="Zeta Exams Admin" className="w-full h-full" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-red-600">Admin Panel</h1>
+              <h1 className="text-xl font-bold text-red-600 dark:text-red-500">Admin Panel</h1>
             </div>
           </div>
 
@@ -95,7 +92,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all
                   ${pathname === item.href
                     ? 'bg-gradient-to-r from-red-600 to-orange-600 text-white'
-                    : 'text-gray-700 hover:bg-gray-100'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                   }
                 `}
               >
@@ -107,7 +104,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
           <button
             onClick={handleLogout}
-            className="w-full mt-6 flex items-center gap-3 px-3 py-2.5 text-red-600 hover:bg-red-50 rounded-lg transition-all"
+            className="w-full mt-6 flex items-center gap-3 px-3 py-2.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
           >
             <span className="text-xl">🚪</span>
             <span className="font-medium">Logout</span>
@@ -116,11 +113,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </aside>
 
       <div className="ml-64">
-        <header className="bg-white border-b sticky top-0 z-30">
-          <div className="px-4 py-3">
-            <h2 className="text-xl font-semibold text-gray-900">
+        <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-30">
+          <div className="px-4 py-3 flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
               {menuItems.find((item) => item.href === pathname)?.label || 'Admin Panel'}
             </h2>
+            <ThemeToggle />
           </div>
         </header>
 
