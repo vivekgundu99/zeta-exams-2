@@ -12,7 +12,7 @@ const { decryptPhone } = require('../utils/encryption');
 const { needsLimitReset, getNextResetTime } = require('../utils/helpers');
 
 // @route   GET /api/user/profile
-// @desc    Get user profile with subscription and limits
+// @desc    Get user profile with subscription and limits (WITH AUTO-RESET)
 // @access  Private
 router.get('/profile', authenticate, async (req, res) => {
   try {
@@ -72,27 +72,28 @@ router.get('/profile', authenticate, async (req, res) => {
         questionCount: 0,
         chapterTestCount: 0,
         mockTestCount: 0,
-        questionCountLimitReached: false,
-        chapterTestCountLimitReached: false,
-        mockTestCountLimitReached: false,
+        ticketCount: 0,
         limitResetTime: getNextResetTime()
       });
     }
 
-    // FIX: Check and reset limits if needed
+    // 🔥 AUTO-RESET limits if needed
     if (needsLimitReset(limits.limitResetTime)) {
-      console.log('🔄 Resetting limits - time passed');
+      console.log('🔄 Auto-resetting limits - time passed');
       limits.questionCount = 0;
       limits.chapterTestCount = 0;
       limits.mockTestCount = 0;
+      limits.ticketCount = 0;
       limits.questionCountLimitReached = false;
       limits.chapterTestCountLimitReached = false;
       limits.mockTestCountLimitReached = false;
+      limits.ticketCountLimitReached = false;
       limits.limitResetTime = getNextResetTime();
       await limits.save();
+      console.log('✅ Limits auto-reset completed');
     }
 
-    // FIX: Sync limits subscription with actual subscription
+    // Sync limits subscription with actual subscription
     if (limits.subscription !== subscription.subscription) {
       console.log('🔄 Syncing limits subscription:', subscription.subscription);
       limits.subscription = subscription.subscription;
@@ -137,7 +138,8 @@ router.get('/profile', authenticate, async (req, res) => {
         subscriptionStartTime: subscription.subscriptionStartTime,
         subscriptionEndTime: subscription.subscriptionEndTime
       },
-      limits: limitStatus
+      limits: limitStatus,
+      resetTime: limits.limitResetTime // 🔥 Include reset time
     });
 
   } catch (error) {
@@ -413,42 +415,52 @@ router.post('/change-password', authenticate, async (req, res) => {
 });
 
 // @route   GET /api/user/limits
-// @desc    Get current usage limits
+// @desc    Get current usage limits (BACKEND ONLY - SINGLE SOURCE OF TRUTH)
 // @access  Private
 router.get('/limits', authenticate, async (req, res) => {
   try {
     console.log('📊 GET /api/user/limits - User:', req.user.userId);
 
     let limits = await Limits.findOne({ userId: req.user.userId });
+    const subscription = await Subscription.findOne({ userId: req.user.userId });
 
-    // FIX: Create limits if doesn't exist
+    // Create limits if doesn't exist
     if (!limits) {
       console.log('⚠️ Creating missing limits for user');
-      const subscription = await Subscription.findOne({ userId: req.user.userId });
-      
       limits = await Limits.create({
         userId: req.user.userId,
         subscription: subscription?.subscription || 'free',
         questionCount: 0,
         chapterTestCount: 0,
         mockTestCount: 0,
-        questionCountLimitReached: false,
-        chapterTestCountLimitReached: false,
-        mockTestCountLimitReached: false,
+        ticketCount: 0,
         limitResetTime: getNextResetTime()
       });
     }
 
-    // Check and reset if needed
+    // 🔥 AUTO-RESET if time passed
     if (needsLimitReset(limits.limitResetTime)) {
-      console.log('🔄 Resetting limits');
+      console.log('🔄 Auto-resetting limits for user:', req.user.userId);
+      
       limits.questionCount = 0;
       limits.chapterTestCount = 0;
       limits.mockTestCount = 0;
+      limits.ticketCount = 0;
       limits.questionCountLimitReached = false;
       limits.chapterTestCountLimitReached = false;
       limits.mockTestCountLimitReached = false;
+      limits.ticketCountLimitReached = false;
       limits.limitResetTime = getNextResetTime();
+      limits.lastUpdated = new Date();
+      
+      await limits.save();
+      console.log('✅ Limits reset successfully');
+    }
+
+    // Sync subscription if changed
+    if (limits.subscription !== subscription?.subscription) {
+      console.log('🔄 Syncing limits subscription:', subscription?.subscription);
+      limits.subscription = subscription?.subscription || 'free';
       await limits.save();
     }
 

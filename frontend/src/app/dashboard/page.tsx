@@ -1,4 +1,4 @@
-// frontend/src/app/dashboard/page.tsx - FIXED: Backend limits only
+// frontend/src/app/dashboard/page.tsx - COMPLETE VERSION
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -28,7 +28,7 @@ export default function DashboardPage() {
 
       console.log('📊 Loading dashboard data...');
 
-      // Single API call to get profile (includes limits from backend)
+      // 🔥 SINGLE API CALL - Backend handles everything
       const response = await userAPI.getProfile();
       
       console.log('✅ Profile response:', response.data);
@@ -151,6 +151,7 @@ export default function DashboardPage() {
       {/* Stats Grid - 🔥 BACKEND LIMITS ONLY */}
       {limits ? (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Questions Card */}
           <Card>
             <CardBody>
               <div className="flex items-center justify-between mb-4">
@@ -178,6 +179,7 @@ export default function DashboardPage() {
             </CardBody>
           </Card>
 
+          {/* Chapter Tests Card */}
           <Card>
             <CardBody>
               <div className="flex items-center justify-between mb-4">
@@ -205,6 +207,7 @@ export default function DashboardPage() {
             </CardBody>
           </Card>
 
+          {/* Mock Tests Card */}
           <Card>
             <CardBody>
               <div className="flex items-center justify-between mb-4">
@@ -251,7 +254,7 @@ export default function DashboardPage() {
               className="relative overflow-hidden"
             >
               {action.locked && (
-                <div className="absolute top-2 right-2 bg-gray-900 text-white text-xs px-2 py-1 rounded-full">
+                <div className="absolute top-2 right-2 bg-gray-900 text-white text-xs px-2 py-1 rounded-full z-10">
                   🔒 Gold Only
                 </div>
               )}
@@ -283,7 +286,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Subscription Alert */}
+      {/* Subscription Alert - Free Plan */}
       {subscription?.subscription === 'free' && (
         <Card className="border-2 border-purple-200">
           <CardBody className="p-6">
@@ -307,6 +310,7 @@ export default function DashboardPage() {
         </Card>
       )}
 
+      {/* Subscription Alert - Expired */}
       {subscription?.subscription !== 'free' && subscription?.subscriptionStatus === 'inactive' && (
         <Card className="border-2 border-red-200 bg-red-50">
           <CardBody className="p-6">
