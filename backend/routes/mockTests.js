@@ -1,3 +1,4 @@
+// backend/routes/mockTests.js - FULLY FIXED VERSION
 const express = require('express');
 const router = express.Router();
 const MockTest = require('../models/MockTest');
@@ -51,37 +52,27 @@ router.get('/list', authenticate, async (req, res) => {
   }
 });
 
-// @route   GET /api/mock-tests/:testId
-// @desc    Get mock test details
+// @route   GET /api/mock-tests/attempts
+// @desc    Get user's mock test attempts
 // @access  Private
-router.get('/:testId', authenticate, async (req, res) => {
+router.get('/attempts', authenticate, async (req, res) => {
   try {
-    const test = await MockTest.findOne({ testId: req.params.testId });
+    console.log('📋 Loading attempts for user:', req.user.userId);
+    
+    const attempts = await MockTestAttempt.find({ 
+      userId: req.user.userId 
+    }).sort({ createdAt: -1 });
 
-    if (!test) {
-      return res.status(404).json({
-        success: false,
-        message: 'Mock test not found'
-      });
-    }
-
-    // Don't send questions yet, only test info
-    const testInfo = {
-      testId: test.testId,
-      testName: test.testName,
-      examType: test.examType,
-      duration: test.duration,
-      totalQuestions: test.totalQuestions,
-      createdAt: test.createdAt
-    };
+    console.log('✅ Found attempts:', attempts.length);
 
     res.json({
       success: true,
-      test: testInfo
+      count: attempts.length,
+      attempts
     });
 
   } catch (error) {
-    console.error('Get mock test error:', error);
+    console.error('💥 Get attempts error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
@@ -99,7 +90,34 @@ router.post('/start', authenticate, async (req, res) => {
 
     console.log('🎯 Start mock test:', testId);
 
-    // Check for ongoing test
+    // 🔥 FIX 1: Auto-abandon old ongoing tests (older than 4 hours)
+    const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
+    
+    const oldOngoingTests = await MockTestAttempt.find({
+      userId: req.user.userId,
+      status: 'ongoing',
+      startTime: { $lt: fourHoursAgo }
+    });
+
+    if (oldOngoingTests.length > 0) {
+      console.log(`🗑️ Auto-abandoning ${oldOngoingTests.length} old test(s)`);
+      
+      await MockTestAttempt.updateMany(
+        {
+          userId: req.user.userId,
+          status: 'ongoing',
+          startTime: { $lt: fourHoursAgo }
+        },
+        {
+          $set: {
+            status: 'abandoned',
+            endTime: new Date()
+          }
+        }
+      );
+    }
+
+    // Check for ongoing test (after cleanup)
     const ongoingTest = await MockTestAttempt.findOne({
       userId: req.user.userId,
       status: 'ongoing'
@@ -129,7 +147,9 @@ router.post('/start', authenticate, async (req, res) => {
       });
     }
     
+    // Reset limits if needed
     if (needsLimitReset(limits.limitResetTime)) {
+      console.log('🔄 Resetting limits');
       limits.mockTestCount = 0;
       limits.mockTestCountLimitReached = false;
       limits.limitResetTime = getNextResetTime();
@@ -250,9 +270,8 @@ router.post('/submit', authenticate, async (req, res) => {
     attempt.answers = processedAnswers;
     attempt.endTime = new Date();
     attempt.status = 'completed';
-    attempt.timeTaken = Math.round((attempt.endTime - attempt.startTime) / 60000); // minutes
+    attempt.timeTaken = Math.round((attempt.endTime - attempt.startTime) / 60000);
 
-    // Calculate results
     attempt.calculateResults();
     await attempt.save();
 
@@ -292,36 +311,9 @@ router.post('/submit', authenticate, async (req, res) => {
   }
 });
 
-// @route   GET /api/mock-tests/attempts
-// @desc    Get user's mock test attempts
+// @route   POST /api/mock-tests/clear-ongoing
+// @desc    Force clear ongoing tests (for fixing stuck tests)
 // @access  Private
-router.get('/attempts', authenticate, async (req, res) => {
-  try {
-    console.log('📋 Loading attempts for user:', req.user.userId);
-    
-    const attempts = await MockTestAttempt.find({ 
-      userId: req.user.userId 
-    }).sort({ createdAt: -1 });
-
-    console.log('✅ Found attempts:', attempts.length);
-
-    res.json({
-      success: true,
-      count: attempts.length,
-      attempts
-    });
-
-  } catch (error) {
-    console.error('💥 Get attempts error:', error);
-    res.status(500).json({  // 🔥 FIXED: Changed from 404 to 500
-      success: false,
-      message: 'Server error',
-      error: error.message
-    });
-  }
-});
-
-// 🔥 NEW ENDPOINT: Force clear ongoing test (for admin/debugging)
 router.post('/clear-ongoing', authenticate, async (req, res) => {
   try {
     console.log('🗑️ Clearing ongoing tests for user:', req.user.userId);
@@ -352,6 +344,59 @@ router.post('/clear-ongoing', authenticate, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to clear ongoing tests',
+      error: error.message
+    });
+  }
+});
+
+// @route   POST /api/mock-tests/abandon
+// @desc    Abandon ongoing test
+// @access  Private
+router.post('/abandon', authenticate, async (req, res) => {
+  try {
+    const { attemptId } = req.body;
+
+    console.log('🗑️ Abandoning test:', attemptId);
+
+    const attempt = await MockTestAttempt.findById(attemptId);
+
+    if (!attempt) {
+      return res.status(404).json({
+        success: false,
+        message: 'Test attempt not found'
+      });
+    }
+
+    if (attempt.userId !== req.user.userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized'
+      });
+    }
+
+    if (attempt.status !== 'ongoing') {
+      return res.status(400).json({
+        success: false,
+        message: 'Test is not ongoing'
+      });
+    }
+
+    attempt.status = 'abandoned';
+    attempt.endTime = new Date();
+    await attempt.save();
+
+    console.log('✅ Test abandoned successfully');
+
+    res.json({
+      success: true,
+      message: 'Test abandoned successfully'
+    });
+
+  } catch (error) {
+    console.error('💥 Abandon test error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
       error: error.message
     });
   }
@@ -406,58 +451,6 @@ router.get('/result/:attemptId', authenticate, async (req, res) => {
 
   } catch (error) {
     console.error('Get result error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-      error: error.message
-    });
-  }
-});
-
-// 🔥 NEW: Abandon ongoing test (for old tests)
-router.post('/abandon', authenticate, async (req, res) => {
-  try {
-    const { attemptId } = req.body;
-
-    console.log('🗑️ Abandoning test:', attemptId);
-
-    const attempt = await MockTestAttempt.findById(attemptId);
-
-    if (!attempt) {
-      return res.status(404).json({
-        success: false,
-        message: 'Test attempt not found'
-      });
-    }
-
-    if (attempt.userId !== req.user.userId) {
-      return res.status(403).json({
-        success: false,
-        message: 'Unauthorized'
-      });
-    }
-
-    if (attempt.status !== 'ongoing') {
-      return res.status(400).json({
-        success: false,
-        message: 'Test is not ongoing'
-      });
-    }
-
-    // Mark as abandoned
-    attempt.status = 'abandoned';
-    attempt.endTime = new Date();
-    await attempt.save();
-
-    console.log('✅ Test abandoned successfully');
-
-    res.json({
-      success: true,
-      message: 'Test abandoned successfully'
-    });
-
-  } catch (error) {
-    console.error('💥 Abandon test error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
