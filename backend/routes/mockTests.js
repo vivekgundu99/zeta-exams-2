@@ -297,9 +297,13 @@ router.post('/submit', authenticate, async (req, res) => {
 // @access  Private
 router.get('/attempts', authenticate, async (req, res) => {
   try {
+    console.log('📋 Loading attempts for user:', req.user.userId);
+    
     const attempts = await MockTestAttempt.find({ 
       userId: req.user.userId 
     }).sort({ createdAt: -1 });
+
+    console.log('✅ Found attempts:', attempts.length);
 
     res.json({
       success: true,
@@ -308,10 +312,46 @@ router.get('/attempts', authenticate, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Get attempts error:', error);
-    res.status(500).json({
+    console.error('💥 Get attempts error:', error);
+    res.status(500).json({  // 🔥 FIXED: Changed from 404 to 500
       success: false,
       message: 'Server error',
+      error: error.message
+    });
+  }
+});
+
+// 🔥 NEW ENDPOINT: Force clear ongoing test (for admin/debugging)
+router.post('/clear-ongoing', authenticate, async (req, res) => {
+  try {
+    console.log('🗑️ Clearing ongoing tests for user:', req.user.userId);
+    
+    const result = await MockTestAttempt.updateMany(
+      { 
+        userId: req.user.userId,
+        status: 'ongoing'
+      },
+      {
+        $set: {
+          status: 'abandoned',
+          endTime: new Date()
+        }
+      }
+    );
+
+    console.log('✅ Cleared ongoing tests:', result.modifiedCount);
+
+    res.json({
+      success: true,
+      message: `Cleared ${result.modifiedCount} ongoing test(s)`,
+      cleared: result.modifiedCount
+    });
+
+  } catch (error) {
+    console.error('💥 Clear ongoing error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to clear ongoing tests',
       error: error.message
     });
   }

@@ -1,4 +1,4 @@
-// frontend/src/app/dashboard/mock-tests/page.tsx - FIXED AUTO-ABANDON
+// frontend/src/app/dashboard/mock-tests/page.tsx - FIXED AUTO-ABANDON + CLEAR ONGOING
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -19,6 +19,7 @@ export default function MockTestsPage() {
   const [subscription, setSubscription] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [ongoingTest, setOngoingTest] = useState<any>(null);
+  const [clearing, setClearing] = useState(false); // 🔥 NEW
 
   useEffect(() => {
     loadData();
@@ -98,6 +99,42 @@ export default function MockTestsPage() {
     }
   };
 
+  // 🔥 NEW: Clear stuck ongoing tests
+  const clearOngoingTests = async () => {
+    if (!window.confirm('This will abandon all ongoing tests. Continue?')) {
+      return;
+    }
+    
+    try {
+      setClearing(true);
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://zeta-exams-backend-2.vercel.app';
+      
+      const response = await fetch(`${API_URL}/api/mock-tests/clear-ongoing`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        toast.success('Ongoing tests cleared successfully!');
+        setOngoingTest(null);
+        // Reload data
+        setTimeout(() => loadData(), 1000);
+      } else {
+        toast.error(data.message || 'Failed to clear tests');
+      }
+    } catch (error) {
+      console.error('Failed to clear ongoing tests:', error);
+      toast.error('Failed to clear ongoing tests');
+    } finally {
+      setClearing(false);
+    }
+  };
+
   const resumeTest = () => {
     if (ongoingTest) {
       router.push(`/dashboard/mock-tests/${ongoingTest.testId}/attempt`);
@@ -164,6 +201,28 @@ export default function MockTestsPage() {
           <p className="text-gray-600 dark:text-gray-400">Full-length practice tests</p>
         </div>
       </div>
+
+      {/* 🔥 ADMIN/DEBUG: Clear stuck ongoing tests */}
+      {ongoingTest && (
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-bold text-yellow-900 dark:text-yellow-100">Stuck on Ongoing Test?</h3>
+              <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                If you can't start new tests, click here to clear the ongoing test.
+              </p>
+            </div>
+            <Button 
+              variant="danger"
+              size="sm"
+              onClick={clearOngoingTests}
+              isLoading={clearing}
+            >
+              Clear Ongoing Test
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Tab Navigation */}
       <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700">

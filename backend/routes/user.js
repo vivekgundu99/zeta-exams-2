@@ -470,4 +470,81 @@ router.get('/limits', authenticate, async (req, res) => {
   }
 });
 
+// backend/routes/user.js - ADD THIS NEW ENDPOINT
+
+// @route   POST /api/user/check-and-reset-limits
+// @desc    Check if limits need reset and reset them (called from frontend)
+// @access  Private
+router.post('/check-and-reset-limits', authenticate, async (req, res) => {
+  try {
+    console.log('🔄 Checking limits reset for user:', req.user.userId);
+
+    if (req.user.isAdmin) {
+      return res.json({ success: true, message: 'Admin has no limits' });
+    }
+
+    let limits = await Limits.findOne({ userId: req.user.userId });
+    
+    if (!limits) {
+      const subscription = await Subscription.findOne({ userId: req.user.userId });
+      limits = await Limits.create({
+        userId: req.user.userId,
+        subscription: subscription?.subscription || 'free',
+        questionCount: 0,
+        chapterTestCount: 0,
+        mockTestCount: 0,
+        ticketCount: 0,
+        limitResetTime: getNextResetTime()
+      });
+      
+      console.log('✅ New limits created for user');
+      return res.json({ success: true, reset: false, message: 'Limits created' });
+    }
+
+    // Check if reset is needed
+    if (needsLimitReset(limits.limitResetTime)) {
+      console.log('🔄 Resetting limits - time passed');
+      
+      limits.questionCount = 0;
+      limits.chapterTestCount = 0;
+      limits.mockTestCount = 0;
+      limits.ticketCount = 0;
+      limits.questionCountLimitReached = false;
+      limits.chapterTestCountLimitReached = false;
+      limits.mockTestCountLimitReached = false;
+      limits.ticketCountLimitReached = false;
+      limits.limitResetTime = getNextResetTime();
+      limits.lastUpdated = new Date();
+      
+      await limits.save();
+      
+      console.log('✅ Limits reset successfully');
+      
+      return res.json({ 
+        success: true, 
+        reset: true, 
+        message: 'Limits reset successfully',
+        nextReset: limits.limitResetTime
+      });
+    }
+
+    console.log('⏳ No reset needed yet');
+    
+    return res.json({ 
+      success: true, 
+      reset: false, 
+      message: 'No reset needed',
+      nextReset: limits.limitResetTime
+    });
+
+  } catch (error) {
+    console.error('❌ Check and reset limits error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to check limits',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;

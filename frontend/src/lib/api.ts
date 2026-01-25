@@ -138,6 +138,9 @@ export const userAPI = {
   
   getLimits: () =>
     api.get('/api/user/limits'),
+  
+  checkAndResetLimits: () =>
+    api.post('/api/user/check-and-reset-limits'),
 };
 
 // Subscription API

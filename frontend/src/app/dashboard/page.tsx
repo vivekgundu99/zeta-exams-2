@@ -8,6 +8,7 @@ import Button from '@/components/ui/Button';
 import Loader from '@/components/ui/Loader';
 import { userAPI } from '@/lib/api';
 import { getGreeting, formatDate } from '@/lib/utils';
+import { toast } from 'react-hot-toast';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -22,36 +23,48 @@ export default function DashboardPage() {
   }, []);
 
   const loadDashboardData = async () => {
+  try {
+    setLoading(true);
+    setError(null);
+
+    console.log('📊 Loading dashboard data...');
+
+    // 🔥 NEW: Check and reset limits first
     try {
-      setLoading(true);
-      setError(null);
-
-      console.log('📊 Loading dashboard data...');
-
-      const response = await userAPI.getProfile();
-      
-      console.log('✅ Profile response:', response.data);
-
-      if (response.data.success) {
-        setUser(response.data.user);
-        setSubscription(response.data.subscription);
-        setLimits(response.data.limits);
-        
-        console.log('✅ Dashboard data loaded:', {
-          user: response.data.user?.name,
-          subscription: response.data.subscription?.subscription,
-          limits: response.data.limits
-        });
-      } else {
-        setError('Failed to load dashboard data');
+      const limitsResetResponse = await userAPI.checkAndResetLimits();
+      if (limitsResetResponse.data.success && limitsResetResponse.data.reset) {
+        console.log('✅ Limits were reset!');
+        toast.success('Your daily limits have been reset! 🎉');
       }
-    } catch (error: any) {
-      console.error('💥 Dashboard load error:', error);
-      setError(error.response?.data?.message || 'Failed to load dashboard');
-    } finally {
-      setLoading(false);
+    } catch (limitsError) {
+      console.error('Failed to check limits reset:', limitsError);
+      // Don't block dashboard load if limits check fails
     }
-  };
+
+    const response = await userAPI.getProfile();
+    
+    console.log('✅ Profile response:', response.data);
+
+    if (response.data.success) {
+      setUser(response.data.user);
+      setSubscription(response.data.subscription);
+      setLimits(response.data.limits);
+      
+      console.log('✅ Dashboard data loaded:', {
+        user: response.data.user?.name,
+        subscription: response.data.subscription?.subscription,
+        limits: response.data.limits
+      });
+    } else {
+      setError('Failed to load dashboard data');
+    }
+  } catch (error: any) {
+    console.error('💥 Dashboard load error:', error);
+    setError(error.response?.data?.message || 'Failed to load dashboard');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const quickActions = [
     {
