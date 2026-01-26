@@ -46,4 +46,4 @@ temp/
 *.sql
 *.dump
 
-public
+public/

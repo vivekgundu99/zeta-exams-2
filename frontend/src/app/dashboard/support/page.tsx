@@ -369,7 +369,7 @@ export default function TicketsPage() {
               onChange={(e) => setIssue(e.target.value)}
               maxLength={150}
               rows={4}
-              className="w-full px-4 py-2 border-2 rounded-lg focus:border-purple-600 focus:outline-none"
+              className="w-full px-4 py-2 border-2 rounded-lg focus:border-purple-600 focus:outline-none text-gray-900 dark:text-gray-900 bg-white dark:bg-white"
               placeholder="Describe your issue in detail..."
             />
           </div>
@@ -446,7 +446,7 @@ export default function TicketsPage() {
                         onChange={(e) => setReplyMessage(e.target.value)}
                         maxLength={150}
                         rows={3}
-                        className="w-full px-4 py-2 border-2 rounded-lg focus:border-purple-600 focus:outline-none"
+                        className="w-full px-4 py-2 border-2 rounded-lg focus:border-purple-600 focus:outline-none text-gray-900 dark:text-gray-900 bg-white dark:bg-white"
                         placeholder="Type your reply..."
                       />
                     </div>

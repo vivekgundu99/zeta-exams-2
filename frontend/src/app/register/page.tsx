@@ -165,7 +165,8 @@ export default function RegisterPage() {
               <h2 className="text-3xl font-bold text-gradient mb-2">Verify Email</h2>
               <p className="text-gray-600">
                 We've sent a 6-digit OTP to<br />
-                <span className="font-semibold text-purple-600">{getValues('email')}</span>
+                <span className="font-semibold text-purple-600">{getValues('email')}</span><br />
+                OTP Not Recieved? Check spam folder in Email.
               </p>
             </div>
 
