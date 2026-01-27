@@ -13,6 +13,11 @@ const { generateOTP, generateUserId, getNextResetTime } = require('../utils/help
 const { validateRegistration, validateLogin, validateOTP } = require('../middleware/validator');
 const { authLimiter, otpLimiter } = require('../middleware/rateLimiter');
 
+// 🔥 NEW: Gmail validation helper
+const isGmailOnly = (email) => {
+  return email.toLowerCase().endsWith('@gmail.com');
+};
+
 // @route   POST /api/auth/send-otp
 // @desc    Send OTP for registration or password reset
 // @access  Public
@@ -24,6 +29,14 @@ router.post('/send-otp', otpLimiter, async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Email and purpose are required'
+      });
+    }
+
+    // 🔥 NEW: Gmail-only validation
+    if (!isGmailOnly(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Only Gmail addresses are allowed for registration. Please use a @gmail.com email.'
       });
     }
 
@@ -103,6 +116,14 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'All fields are required'
+      });
+    }
+
+    // 🔥 NEW: Gmail-only validation
+    if (!isGmailOnly(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Only Gmail addresses are allowed. Please use a @gmail.com email.'
       });
     }
 
@@ -210,7 +231,7 @@ router.post('/register', async (req, res) => {
 
     console.log('🎉 Registration completed successfully!');
 
-    // Return success response - No subscription or limits creation
+    // Return success response
     return res.status(201).json({
       success: true,
       message: 'Registration successful',

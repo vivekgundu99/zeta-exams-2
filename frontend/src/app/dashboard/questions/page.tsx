@@ -103,7 +103,7 @@ export default function QuestionsPage() {
         examType,
         subject: selectedSubject,
         chapter: selectedChapter,
-        topic: selectedTopic === 'ALL_TOPICS' ? '' : selectedTopic,  // 🔥 Send empty for all
+        topic: selectedTopic === 'ALL_TOPICS' ? '' : selectedTopic,
         page: currentPage,
         limit: 20
       });
@@ -113,7 +113,7 @@ export default function QuestionsPage() {
         setTotalPages(response.data.totalPages || 1);
         setTotal(response.data.total || 0);
         
-        // Save to session for navigation
+        // 🔥 SAVE TO SESSION - INCLUDING TOTAL PAGES AND TOTAL COUNT
         sessionStorage.setItem('questionsList', JSON.stringify(response.data.questions));
         sessionStorage.setItem('questionsListParams', JSON.stringify({
           examType,
@@ -122,6 +122,8 @@ export default function QuestionsPage() {
           topic: selectedTopic,
           page: currentPage.toString()
         }));
+        sessionStorage.setItem('questionsTotalPages', (response.data.totalPages || 1).toString());
+        sessionStorage.setItem('questionsTotalCount', (response.data.total || 0).toString());
       }
     } catch (error) {
       toast.error('Failed to load questions');
@@ -226,7 +228,7 @@ export default function QuestionsPage() {
               onChange={(e) => setSelectedTopic(e.target.value)}
               options={[
                 { value: '', label: selectedChapter ? 'Select Topic' : 'Select Chapter First' },
-                { value: 'ALL_TOPICS', label: '📚 All Topics' },  // 🔥 NEW
+                { value: 'ALL_TOPICS', label: '📚 All Topics' },
                 ...topics.map((t) => ({ value: t, label: t })),
               ]}
               disabled={!selectedChapter}
