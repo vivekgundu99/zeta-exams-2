@@ -1,4 +1,4 @@
-// backend/server.js - UPDATED: Removed global authenticate middleware
+// backend/server.js - WITH SUBSCRIPTION EXPIRY SCHEDULER
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -6,6 +6,7 @@ const compression = require('compression');
 const cookieParser = require('cookie-parser');
 const connectDB = require('./config/database');
 const { scheduleDailyReset, autoResetLimits } = require('./middleware/limitsReset');
+const { scheduleSubscriptionExpiry } = require('./utils/subscriptionScheduler'); // 🔥 NEW
 require('dotenv').config();
 
 const app = express();
@@ -59,8 +60,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
-// 🔥 FIXED: Only apply autoResetLimits globally (it checks auth internally)
-// DO NOT apply authenticate globally - it blocks login/register routes!
+// Auto-reset limits middleware
 app.use(autoResetLimits);
 
 app.use((req, res, next) => {
@@ -91,10 +91,15 @@ app.use('/api/tickets', require('./routes/tickets'));
 app.use('/api/giftcodes', require('./routes/giftcodes'));
 console.log('✅ All routes registered');
 
-// 🔥 NEW: Start daily limits reset scheduler
+// 🔥 SCHEDULERS
 if (process.env.NODE_ENV === 'production' || process.env.ENABLE_SCHEDULER === 'true') {
+  // Daily limits reset at 4 AM IST
   scheduleDailyReset();
-  console.log('✅ Daily limits reset scheduler started');
+  console.log('✅ Daily limits reset scheduler started (4 AM IST)');
+  
+  // 🔥 NEW: Subscription expiry check every hour
+  scheduleSubscriptionExpiry();
+  console.log('✅ Subscription expiry scheduler started (every hour)');
 }
 
 app.get('/api/health', (req, res) => {
@@ -109,7 +114,8 @@ app.get('/api/health', (req, res) => {
       resend: process.env.RESEND_API_KEY ? 'configured' : 'missing',
       razorpay: process.env.RAZORPAY_KEY_ID ? 'configured' : 'missing',
       trustProxy: app.get('trust proxy') ? 'enabled' : 'disabled',
-      limitsScheduler: 'enabled'
+      limitsScheduler: 'enabled',
+      subscriptionScheduler: 'enabled' // 🔥 NEW
     }
   };
   

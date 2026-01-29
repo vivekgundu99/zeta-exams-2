@@ -21,6 +21,7 @@ interface Question {
   optionB?: string;
   optionC?: string;
   optionD?: string;
+  optionAImageUrl?: string; // 🔥 NOW STORES COMBINED OPTIONS IMAGE
   attempted?: boolean;
   userAnswer?: string;
   status?: string;
@@ -75,7 +76,6 @@ export default function QuestionViewerPage() {
         setCurrentListPage(parseInt(parsedParams.page) || 1);
       }
       
-      // Load total pages and total questions from session
       const savedTotalPages = sessionStorage.getItem('questionsTotalPages');
       if (savedTotalPages) {
         setTotalPages(parseInt(savedTotalPages));
@@ -132,7 +132,6 @@ export default function QuestionViewerPage() {
         setCurrentListPage(page);
         setCurrentIndex(0);
         
-        // Save to session
         sessionStorage.setItem('questionsList', JSON.stringify(newQuestions));
         sessionStorage.setItem('questionsListParams', JSON.stringify({
           ...listParams,
@@ -141,7 +140,6 @@ export default function QuestionViewerPage() {
         sessionStorage.setItem('questionsTotalPages', (response.data.totalPages || 1).toString());
         sessionStorage.setItem('questionsTotalCount', (response.data.total || 0).toString());
         
-        // Navigate to first question of new page
         if (newQuestions.length > 0) {
           const urlParams = new URLSearchParams({
             ...listParams,
@@ -174,7 +172,6 @@ export default function QuestionViewerPage() {
         setShowResult(true);
         toast.success(response.data.isCorrect ? 'Correct! 🎉' : 'Incorrect ❌');
         
-        // Update question status in list
         const updatedList = [...questionsList];
         updatedList[currentIndex] = {
           ...updatedList[currentIndex],
@@ -207,20 +204,16 @@ export default function QuestionViewerPage() {
 
   const handleNextQuestion = () => {
     if (currentIndex < questionsList.length - 1) {
-      // Navigate to next question in current page
       navigateToQuestion(currentIndex + 1);
     } else if (currentListPage < totalPages) {
-      // Load next page
       loadQuestionsPage(currentListPage + 1);
     }
   };
 
   const handlePreviousQuestion = () => {
     if (currentIndex > 0) {
-      // Navigate to previous question in current page
       navigateToQuestion(currentIndex - 1);
     } else if (currentListPage > 1) {
-      // Load previous page and go to last question
       loadQuestionsPage(currentListPage - 1);
     }
   };
@@ -234,7 +227,6 @@ export default function QuestionViewerPage() {
     }
   };
 
-  // Calculate global question number
   const globalQuestionNumber = (currentListPage - 1) * 20 + currentIndex + 1;
 
   if (loading) {
@@ -257,7 +249,7 @@ export default function QuestionViewerPage() {
         </Button>
         
         {questionsList.length > 0 && totalQuestions > 0 && (
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-gray-600 dark:text-gray-400">
             Question {globalQuestionNumber} of {totalQuestions}
           </div>
         )}
@@ -267,11 +259,11 @@ export default function QuestionViewerPage() {
         <CardBody className="p-8">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-semibold">
+              <span className="px-3 py-1 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-100 rounded-full text-sm font-semibold">
                 Question {globalQuestionNumber} {totalQuestions > 0 && `of ${totalQuestions}`}
               </span>
             </div>
-            <div className="text-sm text-gray-600 text-right">
+            <div className="text-sm text-gray-600 dark:text-gray-400 text-right">
               <p className="font-mono">ID: {question.questionId}</p>
               <p className="font-mono text-xs">Serial: {question.serialNumber}</p>
             </div>
@@ -281,72 +273,87 @@ export default function QuestionViewerPage() {
             <div className="flex items-center gap-2 mb-4">
               <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
                 question.questionType === 'S' 
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'bg-green-100 text-green-700'
+                  ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-100'
+                  : 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-100'
               }`}>
                 {question.questionType === 'S' ? 'MCQ' : 'Numerical'}
               </span>
-              <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
+              <span className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-100 rounded-full text-sm">
                 {question.subject} • {question.chapter}
               </span>
             </div>
 
-            <div className="text-lg font-medium text-gray-900 mb-4">
+            <div className="text-lg font-medium text-gray-900 dark:text-gray-50 mb-4 question-text">
               <LatexRenderer text={question.question} />
             </div>
 
+            {/* 🔥 50% SMALLER QUESTION IMAGE */}
             {question.questionImageUrl && (
               <img
                 src={question.questionImageUrl}
                 alt="Question"
-                className="max-w-full h-auto rounded-lg mb-4"
+                className="max-w-[50%] h-auto rounded-lg mb-4 border border-gray-200 dark:border-gray-700"
               />
             )}
           </div>
 
           <div className="space-y-3 mb-6">
             {question.questionType === 'S' ? (
-              ['A', 'B', 'C', 'D'].map((option) => {
-                const isSelected = selectedAnswer === option;
-                const isCorrect = showResult && result?.correctAnswer === option;
-                const isWrong = showResult && isSelected && !result?.isCorrect;
-                
-                return (
-                  <label
-                    key={option}
-                    className={`flex items-center p-4 border-2 rounded-lg transition-all ${
-                      showResult
-                        ? isCorrect
-                          ? 'border-green-500 bg-green-50'
-                          : isWrong
-                          ? 'border-red-500 bg-red-50'
-                          : 'border-gray-200'
-                        : isSelected
-                        ? 'border-purple-600 bg-purple-50'
-                        : 'border-gray-200 hover:border-purple-300 cursor-pointer'
-                    }`}
-                  >
-                    {!showResult && (
-                      <input
-                        type="radio"
-                        name="answer"
-                        value={option}
-                        checked={isSelected}
-                        onChange={(e) => setSelectedAnswer(e.target.value)}
-                        className="mr-3"
-                      />
-                    )}
-                    {showResult && (
-                      <span className="mr-3 font-bold">
-                        {isCorrect ? '✓' : isWrong ? '✗' : ' '}
-                      </span>
-                    )}
-                    <div className="flex-1">
-                      <LatexRenderer text={question[`option${option}` as keyof Question] as string} />
-                    </div>
-                  </label>
-                );
-              })
+              <>
+                {['A', 'B', 'C', 'D'].map((option) => {
+                  const isSelected = selectedAnswer === option;
+                  const isCorrect = showResult && result?.correctAnswer === option;
+                  const isWrong = showResult && isSelected && !result?.isCorrect;
+                  
+                  return (
+                    <label
+                      key={option}
+                      className={`flex items-center p-4 border-2 rounded-lg transition-all option-text ${
+                        showResult
+                          ? isCorrect
+                            ? 'border-green-500 bg-green-50 dark:bg-green-900/30'
+                            : isWrong
+                            ? 'border-red-500 bg-red-50 dark:bg-red-900/30'
+                            : 'border-gray-200 dark:border-gray-700'
+                          : isSelected
+                          ? 'border-purple-600 bg-purple-50 dark:bg-purple-900/30 option-selected'
+                          : 'border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-700 cursor-pointer'
+                      }`}
+                    >
+                      {!showResult && (
+                        <input
+                          type="radio"
+                          name="answer"
+                          value={option}
+                          checked={isSelected}
+                          onChange={(e) => setSelectedAnswer(e.target.value)}
+                          className="mr-3"
+                        />
+                      )}
+                      {showResult && (
+                        <span className="mr-3 font-bold">
+                          {isCorrect ? '✓' : isWrong ? '✗' : ' '}
+                        </span>
+                      )}
+                      <div className="flex-1">
+                        <LatexRenderer text={question[`option${option}` as keyof Question] as string} />
+                      </div>
+                    </label>
+                  );
+                })}
+
+                {/* 🔥 50% SMALLER OPTIONS IMAGE (stored in optionAImageUrl) */}
+                {question.optionAImageUrl && (
+                  <div className="mt-4">
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Options Image:</p>
+                    <img
+                      src={question.optionAImageUrl}
+                      alt="Options"
+                      className="max-w-full h-auto rounded-lg border border-gray-200 dark:border-gray-700"
+                    />
+                  </div>
+                )}
+              </>
             ) : (
               <input
                 type="number"
@@ -355,7 +362,7 @@ export default function QuestionViewerPage() {
                 value={selectedAnswer}
                 onChange={(e) => setSelectedAnswer(e.target.value)}
                 disabled={showResult}
-                className="w-full px-4 py-3 border-2 rounded-lg focus:border-purple-600 focus:outline-none disabled:bg-gray-100"
+                className="w-full px-4 py-3 border-2 rounded-lg focus:border-purple-600 focus:outline-none disabled:bg-gray-100 dark:disabled:bg-gray-800 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100"
               />
             )}
           </div>
@@ -363,30 +370,34 @@ export default function QuestionViewerPage() {
           {showResult && result && (
             <>
               <div className={`p-6 rounded-lg mb-6 ${
-                result.isCorrect ? 'bg-green-50 border-2 border-green-500' : 'bg-red-50 border-2 border-red-500'
+                result.isCorrect 
+                  ? 'bg-green-50 dark:bg-green-900/30 border-2 border-green-500' 
+                  : 'bg-red-50 dark:bg-red-900/30 border-2 border-red-500'
               }`}>
-                <p className="font-semibold mb-2">
+                <p className="font-semibold mb-2 text-gray-900 dark:text-gray-100">
                   {result.isCorrect ? '✅ Correct!' : '❌ Incorrect'}
                 </p>
-                <p className="text-sm">
+                <p className="text-sm text-gray-800 dark:text-gray-200">
                   Your Answer: <strong>{selectedAnswer}</strong>
                 </p>
-                <p className="text-sm">
+                <p className="text-sm text-gray-800 dark:text-gray-200">
                   Correct Answer: <strong>{result.correctAnswer}</strong>
                 </p>
               </div>
 
               {result.explanation && (
-                <div className="bg-blue-50 p-6 rounded-lg mb-6">
-                  <h4 className="font-semibold text-blue-900 mb-2">Explanation:</h4>
-                  <div className="text-blue-800">
+                <div className="bg-blue-50 dark:bg-blue-900/30 p-6 rounded-lg mb-6 border-2 border-blue-200 dark:border-blue-800 explanation-text">
+                  <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">Explanation:</h4>
+                  <div className="text-blue-800 dark:text-blue-200">
                     <LatexRenderer text={result.explanation} />
                   </div>
+
+                  {/* 🔥 50% SMALLER EXPLANATION IMAGE */}
                   {result.explanationImageUrl && (
                     <img
                       src={result.explanationImageUrl}
                       alt="Explanation"
-                      className="mt-4 max-w-full h-auto rounded-lg"
+                      className="mt-4 max-w-[50%] h-auto rounded-lg border border-blue-200 dark:border-blue-700"
                     />
                   )}
                 </div>
@@ -435,13 +446,13 @@ export default function QuestionViewerPage() {
           </div>
 
           {questionsList.length > 0 && (
-            <div className="mt-8 pt-6 border-t">
+            <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-medium text-gray-700">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   Current Page Questions ({((currentListPage - 1) * 20) + 1} - {Math.min(currentListPage * 20, totalQuestions)}):
                 </p>
                 {totalPages > 1 && (
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
                     Page {currentListPage} of {totalPages}
                   </span>
                 )}
@@ -453,10 +464,10 @@ export default function QuestionViewerPage() {
                     onClick={() => navigateToQuestion(i)}
                     className={`w-10 h-10 rounded-lg font-medium text-sm transition-all ${
                       i === currentIndex
-                        ? 'bg-purple-600 text-white ring-2 ring-purple-300'
+                        ? 'bg-purple-600 text-white ring-2 ring-purple-300 dark:ring-purple-700'
                         : q.status === 'attempted' || q.attempted
                         ? 'bg-green-500 text-white hover:bg-green-600'
-                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
                     }`}
                   >
                     {i + 1}
@@ -467,7 +478,7 @@ export default function QuestionViewerPage() {
           )}
 
           {questionsList.length > 0 && totalPages > 1 && (
-            <div className="mt-6 pt-4 border-t flex items-center justify-between">
+            <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
               <Button
                 variant="outline"
                 size="sm"
@@ -480,7 +491,7 @@ export default function QuestionViewerPage() {
                 Previous 20
               </Button>
               
-              <span className="text-sm text-gray-600 font-medium">
+              <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">
                 Page {currentListPage} of {totalPages}
               </span>
               

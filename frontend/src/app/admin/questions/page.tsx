@@ -187,10 +187,41 @@ export default function AdminQuestionsPage() {
       {activeTab === 'upload' && (
         <Card>
           <CardBody>
-            <h3 className="font-semibold mb-4">CSV Format Help</h3>
-            <div className="bg-gray-50 p-4 rounded-lg text-sm space-y-2 mb-6">
-              <p><strong>MCQ:</strong> S#Physics#Gravitation#Topic#Question?#OptA#OptB#OptC#OptD#A#img#img#img#img#img#Explanation</p>
-              <p><strong>Numerical:</strong> N#Physics#Gravitation#Topic#Question?#####Answer#img#####Explanation</p>
+            <h3 className="font-semibold mb-4">🔥 NEW CSV Format (3 Images)</h3>
+            <div className="bg-blue-50 p-4 rounded-lg text-sm space-y-3 mb-6">
+              <p className="font-bold text-blue-900">📸 NEW FORMAT - 3 IMAGES ONLY:</p>
+              <div className="space-y-2 text-blue-800">
+                <p><strong>MCQ Format (14 fields):</strong></p>
+                <p className="font-mono text-xs bg-white p-2 rounded break-all">
+                  S#Physics#Gravitation#Topic#Question?#OptA#OptB#OptC#OptD#A#QuestionImg#OptionsImg#Explanation#ExplanationImg
+                </p>
+                
+                <p className="mt-3"><strong>Numerical Format (14 fields):</strong></p>
+                <p className="font-mono text-xs bg-white p-2 rounded break-all">
+                  N#Physics#Gravitation#Topic#Question?#####Answer#QuestionImg##Explanation#ExplanationImg
+                </p>
+                
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                  <p className="font-bold text-yellow-900 mb-2">🎯 KEY CHANGES:</p>
+                  <ul className="list-disc list-inside space-y-1 text-yellow-800">
+                    <li><strong>3 Images Total:</strong> Question Image, Options Image (all 4 in ONE image), Explanation Image</li>
+                    <li><strong>Options Image:</strong> All 4 options combined in a single image (field 11)</li>
+                    <li><strong>Latex Support:</strong> Question, Options, and Explanation support latex</li>
+                    <li><strong>Empty Images:</strong> Use empty field (nothing between #) for no image</li>
+                    <li><strong>Images 50% smaller:</strong> All images display at half their original size</li>
+                  </ul>
+                </div>
+
+                <p className="mt-3"><strong>Example MCQ:</strong></p>
+                <p className="font-mono text-xs bg-white p-2 rounded break-all">
+                  S#Physics#Mechanics#Kinematics#What is velocity?#Speed with direction#Only speed#Only direction#None#A#https://example.com/q1.jpg#https://example.com/opts1.jpg#Velocity is vector quantity#https://example.com/expl1.jpg
+                </p>
+
+                <p className="mt-3"><strong>Example Numerical:</strong></p>
+                <p className="font-mono text-xs bg-white p-2 rounded break-all">
+                  N#Physics#Mechanics#Kinematics#Calculate speed#####42.5#https://example.com/q2.jpg##Speed = distance/time#https://example.com/expl2.jpg
+                </p>
+              </div>
             </div>
 
             <Dropdown
@@ -212,7 +243,7 @@ export default function AdminQuestionsPage() {
                 onChange={(e) => setCsvText(e.target.value)}
                 rows={15}
                 className="w-full px-4 py-3 border-2 rounded-lg focus:border-purple-600 focus:outline-none font-mono text-sm"
-                placeholder="Paste CSV formatted questions here..."
+                placeholder="Paste NEW FORMAT CSV questions here (14 fields, 3 images)..."
               />
             </div>
 
@@ -222,7 +253,7 @@ export default function AdminQuestionsPage() {
               isLoading={uploading}
               className="mt-4"
             >
-              Upload Questions
+              Upload Questions (New Format)
             </Button>
           </CardBody>
         </Card>
@@ -399,21 +430,39 @@ export default function AdminQuestionsPage() {
                           <p className="text-sm font-medium mb-2">Question:</p>
                           <p className="text-sm text-gray-800">{question.question}</p>
 
-                          {question.questionType === 'S' && (
-                            <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                              <p>
-                                <strong>A:</strong> {question.optionA}
-                              </p>
-                              <p>
-                                <strong>B:</strong> {question.optionB}
-                              </p>
-                              <p>
-                                <strong>C:</strong> {question.optionC}
-                              </p>
-                              <p>
-                                <strong>D:</strong> {question.optionD}
-                              </p>
+                          {/* 🔥 50% SMALLER IMAGES */}
+                          {question.questionImageUrl && (
+                            <div className="mt-2">
+                              <p className="text-xs text-gray-600 mb-1">Question Image:</p>
+                              <img 
+                                src={question.questionImageUrl} 
+                                alt="Question" 
+                                className="max-w-[50%] h-auto rounded border"
+                              />
                             </div>
+                          )}
+
+                          {question.questionType === 'S' && (
+                            <>
+                              <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                                <p><strong>A:</strong> {question.optionA}</p>
+                                <p><strong>B:</strong> {question.optionB}</p>
+                                <p><strong>C:</strong> {question.optionC}</p>
+                                <p><strong>D:</strong> {question.optionD}</p>
+                              </div>
+
+                              {/* 🔥 OPTIONS IMAGE (stored in optionAImageUrl) */}
+                              {question.optionAImageUrl && (
+                                <div className="mt-2">
+                                  <p className="text-xs text-gray-600 mb-1">Options Image:</p>
+                                  <img 
+                                    src={question.optionAImageUrl} 
+                                    alt="Options" 
+                                    className="max-w-[50%] h-auto rounded border"
+                                  />
+                                </div>
+                              )}
+                            </>
                           )}
 
                           <p className="mt-2 text-sm">
@@ -422,9 +471,23 @@ export default function AdminQuestionsPage() {
                           </p>
 
                           {question.explanation && (
-                            <p className="mt-2 text-sm text-gray-600">
-                              <strong>Explanation:</strong> {question.explanation}
-                            </p>
+                            <>
+                              <p className="mt-2 text-sm text-gray-600">
+                                <strong>Explanation:</strong> {question.explanation}
+                              </p>
+
+                              {/* 🔥 50% SMALLER EXPLANATION IMAGE */}
+                              {question.explanationImageUrl && (
+                                <div className="mt-2">
+                                  <p className="text-xs text-gray-600 mb-1">Explanation Image:</p>
+                                  <img 
+                                    src={question.explanationImageUrl} 
+                                    alt="Explanation" 
+                                    className="max-w-[50%] h-auto rounded border"
+                                  />
+                                </div>
+                              )}
+                            </>
                           )}
                         </div>
                       </div>

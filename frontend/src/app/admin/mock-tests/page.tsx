@@ -126,28 +126,46 @@ export default function AdminMockTestsPage() {
             <h3 className="font-semibold mb-4">Create New Mock Test</h3>
             
             <div className="bg-blue-50 p-4 rounded-lg text-sm mb-6">
-              <p className="font-semibold text-blue-900 mb-2">CSV Format Guide:</p>
-              <div className="bg-blue-50 p-4 rounded-lg text-sm mb-6">
-                <p className="font-semibold text-blue-900 mb-2">NEW CSV Format Guide:</p>
-                <div className="space-y-2 text-blue-800">
-                  <p><strong>Format:</strong> Serial#Type#Question#OptA#OptB#OptC#OptD#Answer#QImg#AImg#BImg#CImg#DImg#Explanation</p>
-                  <p className="mt-3"><strong>MCQ Example:</strong></p>
-                  <p className="font-mono text-xs bg-white p-2 rounded">
-                    1#S#What is 2+2?#3#4#5#6#B####Explanation text
-                  </p>
-                  <p className="mt-2"><strong>Numerical Example:</strong></p>
-                  <p className="font-mono text-xs bg-white p-2 rounded">
-                    2#N#Calculate mass#####42.5#url#####Explanation
-                  </p>
-                  <p className="mt-3"><strong>Important:</strong></p>
-                  <ul className="list-disc list-inside space-y-1">
-                    <li>Serial numbers (1, 2, 3...) for ordering only</li>
-                    <li>For JEE: Questions 1-30 Physics, 31-60 Chemistry, 61-90 Maths</li>
-                    <li>For NEET: Questions 1-45 Physics, 46-90 Chemistry, 91-180 Biology</li>
-                    <li>Use ##### for empty fields (numerical options)</li>
-                    <li>Total: JEE=90 questions, NEET=180 questions</li>
+              <p className="font-semibold text-blue-900 mb-2">🔥 NEW CSV Format (3 Images):</p>
+              <div className="space-y-2 text-blue-800">
+                <p><strong>Format (12 fields):</strong></p>
+                <p className="font-mono text-xs bg-white p-2 rounded break-all">
+                  Serial#Type#Question#OptA#OptB#OptC#OptD#Answer#QImg#OptionsImg#Explanation#ExplImg
+                </p>
+                
+                <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                  <p className="font-bold text-yellow-900 mb-2">🎯 KEY CHANGES:</p>
+                  <ul className="list-disc list-inside space-y-1 text-yellow-800">
+                    <li><strong>3 Images Total:</strong> Question Image, Options Image (all 4 in ONE image), Explanation Image</li>
+                    <li><strong>Field 9:</strong> Question Image URL</li>
+                    <li><strong>Field 10:</strong> Options Image URL (ALL 4 options combined in one image)</li>
+                    <li><strong>Field 11:</strong> Explanation text (latex supported)</li>
+                    <li><strong>Field 12:</strong> Explanation Image URL</li>
+                    <li><strong>Empty Images:</strong> Leave field empty (nothing between #) for no image</li>
+                    <li><strong>Display Size:</strong> All images show at 50% of original size</li>
                   </ul>
                 </div>
+
+                <p className="mt-3"><strong>MCQ Example:</strong></p>
+                <p className="font-mono text-xs bg-white p-2 rounded break-all">
+                  1#S#What is velocity?#Speed with direction#Only speed#Only direction#None#A#https://example.com/q1.jpg#https://example.com/opts1.jpg#Velocity is a vector quantity#https://example.com/expl1.jpg
+                </p>
+                
+                <p className="mt-2"><strong>Numerical Example:</strong></p>
+                <p className="font-mono text-xs bg-white p-2 rounded break-all">
+                  2#N#Calculate speed#####42.5#https://example.com/q2.jpg##Speed = distance/time#https://example.com/expl2.jpg
+                </p>
+                
+                <p className="mt-3"><strong>Important:</strong></p>
+                <ul className="list-disc list-inside space-y-1">
+                  <li>Serial numbers (1, 2, 3...) for ordering only</li>
+                  <li>For JEE: Questions 1-30 Physics, 31-60 Chemistry, 61-90 Maths</li>
+                  <li>For NEET: Questions 1-45 Physics, 46-90 Chemistry, 91-180 Biology</li>
+                  <li>Use ##### for empty numerical option fields</li>
+                  <li>Use ## for empty options image field in numerical questions</li>
+                  <li>Total: JEE=90 questions, NEET=180 questions</li>
+                  <li><strong>NEW:</strong> Options image field (10) contains all 4 options in ONE image</li>
+                </ul>
               </div>
             </div>
 
@@ -180,13 +198,13 @@ export default function AdminMockTestsPage() {
                   onChange={(e) => setFormData({ ...formData, csvText: e.target.value })}
                   rows={15}
                   className="w-full px-4 py-3 border-2 rounded-lg focus:border-purple-600 focus:outline-none font-mono text-sm"
-                  placeholder="Paste CSV formatted questions here..."
+                  placeholder="Paste NEW FORMAT CSV questions here (12 fields, 3 images)..."
                   required
                 />
               </div>
 
               <Button type="submit" fullWidth isLoading={loading}>
-                Create Mock Test
+                Create Mock Test (New Format)
               </Button>
             </form>
           </CardBody>

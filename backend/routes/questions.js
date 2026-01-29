@@ -154,7 +154,6 @@ router.get('/:questionId', authenticate, async (req, res) => {
       questionId: questionId
     });
 
-    // 🔥 UPDATED: Count ALL questions, not just unattempted
     let limits = await Limits.findOne({ userId: req.user.userId });
     
     if (!limits) {
@@ -189,7 +188,6 @@ router.get('/:questionId', authenticate, async (req, res) => {
       await limits.save();
     }
 
-    // 🔥 CHANGED: Always increment count (both attempted and unattempted)
     const limitStatus = limits.checkLimits();
     if (limitStatus.questions.reached) {
       return res.status(403).json({
@@ -288,4 +286,5 @@ router.post('/submit-answer', authenticate, async (req, res) => {
     });
   }
 });
+
 module.exports = router;

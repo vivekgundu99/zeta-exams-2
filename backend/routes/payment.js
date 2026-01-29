@@ -1,3 +1,4 @@
+// backend/routes/payment.js - FIXED UPGRADE LOGIC
 const express = require('express');
 const router = express.Router();
 const Razorpay = require('razorpay');
@@ -73,7 +74,7 @@ router.post('/create-order', authenticate, paymentLimiter, async (req, res) => {
   }
 });
 
-// Verify payment
+// 🔥 FIXED: Verify payment with proper upgrade logic
 router.post('/verify', authenticate, async (req, res) => {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
@@ -104,38 +105,43 @@ router.post('/verify', authenticate, async (req, res) => {
     payment.razorpayPaymentId = razorpay_payment_id;
     payment.razorpaySignature = razorpay_signature;
     payment.status = 'success';
+    payment.subscriptionType = 'original'; // 🔥 ALWAYS original for payments
     await payment.save();
 
-    // Update subscription
-    const endDate = calculateSubscriptionEndDate(payment.subscriptionDuration);
+    console.log('💳 Payment verified successfully');
+    console.log(`   User: ${req.user.userId}`);
+    console.log(`   Plan: ${payment.subscriptionPlan}`);
+    console.log(`   Duration: ${payment.subscriptionDuration}`);
+
+    // 🔥 CRITICAL: Get current subscription
+    let subscription = await Subscription.findOne({ userId: req.user.userId });
     
-    await Subscription.updateOne(
-      { userId: req.user.userId },
-      {
-        subscription: payment.subscriptionPlan,
+    if (!subscription) {
+      // Create new subscription if doesn't exist
+      subscription = new Subscription({
+        userId: req.user.userId,
+        exam: null, // Will be set if user has exam preference
+        subscription: 'free',
         subscriptionType: 'original',
-        subscriptionStartTime: new Date(),
-        subscriptionEndTime: endDate,
         subscriptionStatus: 'active'
-      }
+      });
+    }
+
+    const currentPlan = subscription.subscription;
+    const currentType = subscription.subscriptionType;
+    
+    console.log(`   Current: ${currentPlan} (${currentType})`);
+
+    // 🔥 USE UPGRADE METHOD - Handles all transitions correctly
+    const endDate = calculateSubscriptionEndDate(payment.subscriptionDuration);
+    await subscription.upgradeTo(
+      payment.subscriptionPlan,
+      payment.subscriptionDuration,
+      'original' // ALWAYS original for paid subscriptions
     );
 
-    // In verifyPayment function, after updating subscription:
-    await Subscription.updateOne(
-      { userId: req.user.userId },
-      {
-        subscription: payment.subscriptionPlan,
-        subscriptionType: 'original',  // 🔥 ALWAYS set to original for payments
-        subscriptionStartTime: new Date(),
-        subscriptionEndTime: endDate,
-        subscriptionStatus: 'active'
-      }
-    );
-    // Update limits
-    await Limits.updateOne(
-      { userId: req.user.userId },
-      { subscription: payment.subscriptionPlan }
-    );
+    console.log(`   ✅ Upgraded to: ${payment.subscriptionPlan} (original)`);
+    console.log(`   ✅ Valid until: ${endDate.toISOString()}`);
 
     // Send confirmation email
     const UserData = require('../models/UserData');
@@ -158,12 +164,15 @@ router.post('/verify', authenticate, async (req, res) => {
       message: 'Payment verified successfully',
       subscription: {
         plan: payment.subscriptionPlan,
+        type: 'original',
         duration: payment.subscriptionDuration,
-        endDate
+        endDate,
+        upgradedFrom: currentPlan !== 'free' ? currentPlan : null
       }
     });
 
   } catch (error) {
+    console.error('❌ Payment verification error:', error);
     res.status(500).json({
       success: false,
       message: 'Payment verification failed',
@@ -184,14 +193,11 @@ router.post('/webhook', async (req, res) => {
       .digest('hex');
 
     if (webhookSignature === expectedSignature) {
-      // Process webhook event
       const event = req.body.event;
       
       if (event === 'payment.captured') {
-        // Handle successful payment
         console.log('Payment captured:', req.body.payload.payment.entity);
       } else if (event === 'payment.failed') {
-        // Handle failed payment
         const paymentId = req.body.payload.payment.entity.id;
         await PaymentDetails.updateOne(
           { razorpayPaymentId: paymentId },

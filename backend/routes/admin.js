@@ -85,11 +85,11 @@ router.get('/dashboard/stats', async (req, res) => {
 });
 
 // @route   POST /api/admin/questions/bulk-upload
-// @desc    Bulk upload questions via CSV
+// @desc    Bulk upload questions via CSV - NEW FORMAT
 // @access  Admin
 router.post('/questions/bulk-upload', async (req, res) => {
   try {
-    console.log('📤 BULK UPLOAD REQUEST STARTED');
+    console.log('📤 NEW FORMAT BULK UPLOAD REQUEST STARTED');
     console.log('User:', req.user);
     console.log('Body keys:', Object.keys(req.body));
     
@@ -108,13 +108,6 @@ router.post('/questions/bulk-upload', async (req, res) => {
       linesCount: csvText.split('\n').filter(l => l.trim()).length,
       firstLine: csvText.split('\n')[0]?.substring(0, 50)
     });
-
-    if (!csvText || !examType) {
-      return res.status(400).json({
-        success: false,
-        message: 'CSV text and exam type are required'
-      });
-    }
 
     const lines = csvText.trim().split('\n').filter(l => l.trim());
     const questions = [];
@@ -137,8 +130,11 @@ router.post('/questions/bulk-upload', async (req, res) => {
       try {
         const parts = parseCSVLine(lines[i]);
 
-        if (parts.length < 16) {
-          errors.push(`Line ${i + 1}: Invalid format (expected 16 fields, got ${parts.length})`);
+        // NEW FORMAT VALIDATION
+        // MCQ: S#Physics#Gravitation#Topic#Question?#OptA#OptB#OptC#OptD#A#QImg#OptionsImg#Explanation#ExplImg
+        // NUM: N#Physics#Gravitation#Topic#Question?#####Answer#QImg##Explanation#ExplImg
+        if (parts.length < 14) {
+          errors.push(`Line ${i + 1}: Invalid format (expected 14 fields, got ${parts.length})`);
           continue;
         }
 
@@ -152,13 +148,12 @@ router.post('/questions/bulk-upload', async (req, res) => {
         const optionC = parts[7]?.trim() || null;
         const optionD = parts[8]?.trim() || null;
         const answer = parts[9]?.trim();
+        
+        // 🔥 NEW: 3 images - question, options combined, explanation
         const questionImageUrl = parts[10]?.trim() || null;
-        const optionAImageUrl = parts[11]?.trim() || null;
-        const optionBImageUrl = parts[12]?.trim() || null;
-        const optionCImageUrl = parts[13]?.trim() || null;
-        const optionDImageUrl = parts[14]?.trim() || null;
-        const explanation = parts[15]?.trim() || null;
-        const explanationImageUrl = parts[16]?.trim() || null;
+        const optionsImageUrl = parts[11]?.trim() || null;  // All 4 options in one image
+        const explanation = parts[12]?.trim() || null;
+        const explanationImageUrl = parts[13]?.trim() || null;
 
         // Validate
         if (!questionType || !subject || !chapter || !topic || !question || !answer) {
@@ -204,10 +199,11 @@ router.post('/questions/bulk-upload', async (req, res) => {
           optionD,
           answer,
           questionImageUrl,
-          optionAImageUrl,
-          optionBImageUrl,
-          optionCImageUrl,
-          optionDImageUrl,
+          // 🔥 NEW: Store options image in optionAImageUrl (reusing field for combined options image)
+          optionAImageUrl: optionsImageUrl,
+          optionBImageUrl: null,  // Not used in new format
+          optionCImageUrl: null,  // Not used in new format
+          optionDImageUrl: null,  // Not used in new format
           explanation,
           explanationImageUrl
         });
@@ -455,7 +451,7 @@ router.delete('/formulas/:id', async (req, res) => {
 });
 
 // @route   POST /api/admin/mock-tests/create
-// @desc    Create a mock test with new CSV format
+// @desc    Create a mock test with new CSV format - 3 IMAGES
 // @access  Admin
 router.post('/mock-tests/create', authenticate, isAdmin, async (req, res) => {
   try {
@@ -471,12 +467,12 @@ router.post('/mock-tests/create', authenticate, isAdmin, async (req, res) => {
         const line = lines[i];
         const parts = parseCSVLine(line);
         
-        // NEW FORMAT: serial#type#question#optA#optB#optC#optD#answer#qImg#aImg#bImg#cImg#dImg#explanation
-        // For MCQ: 1#S#Question?#A#B#C#D#A#url#url#url#url#url#Explanation
-        // For Numerical: 2#N#Question?#####42.5#url#####Explanation
+        // 🔥 NEW FORMAT (14 fields):
+        // MCQ: 1#S#Question?#OptA#OptB#OptC#OptD#A#QImg#OptionsImg#Explanation#ExplImg
+        // NUM: 2#N#Question?#####Answer#QImg##Explanation#ExplImg
         
-        if (parts.length < 14) {
-          console.error(`❌ Line ${i + 1}: Invalid format (expected 14+ fields, got ${parts.length})`);
+        if (parts.length < 12) {
+          console.error(`❌ Line ${i + 1}: Invalid format (expected 12+ fields, got ${parts.length})`);
           continue;
         }
         
@@ -488,12 +484,12 @@ router.post('/mock-tests/create', authenticate, isAdmin, async (req, res) => {
         const optionC = parts[5] || null;
         const optionD = parts[6] || null;
         const answer = parts[7];
+        
+        // 🔥 NEW: 3 images - question, options combined, explanation
         const questionImageUrl = parts[8] || null;
-        const optionAImageUrl = parts[9] || null;
-        const optionBImageUrl = parts[10] || null;
-        const optionCImageUrl = parts[11] || null;
-        const optionDImageUrl = parts[12] || null;
-        const explanation = parts[13] || null;
+        const optionsImageUrl = parts[9] || null;  // All 4 options in one image
+        const explanation = parts[10] || null;
+        const explanationImageUrl = parts[11] || null;
         
         // Validate
         if (!questionType || !question || !answer) {
@@ -532,12 +528,13 @@ router.post('/mock-tests/create', authenticate, isAdmin, async (req, res) => {
           optionD,
           answer,
           questionImageUrl,
-          optionAImageUrl,
-          optionBImageUrl,
-          optionCImageUrl,
-          optionDImageUrl,
+          // 🔥 NEW: Store options image in optionAImageUrl (reusing field)
+          optionAImageUrl: optionsImageUrl,
+          optionBImageUrl: null,  // Not used
+          optionCImageUrl: null,  // Not used
+          optionDImageUrl: null,  // Not used
           explanation,
-          explanationImageUrl: null
+          explanationImageUrl
         });
         
       } catch (error) {
