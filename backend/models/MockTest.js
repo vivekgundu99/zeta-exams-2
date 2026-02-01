@@ -1,3 +1,4 @@
+// backend/models/MockTest.js - FIXED DUPLICATE INDEX WARNINGS
 const mongoose = require('mongoose');
 
 const mockTestQuestionSchema = new mongoose.Schema({
@@ -36,8 +37,7 @@ const mockTestQuestionSchema = new mongoose.Schema({
 const mockTestSchema = new mongoose.Schema({
   testId: {
     type: String,
-    required: true,
-    unique: true
+    required: true
   },
   examType: {
     type: String,
@@ -65,8 +65,8 @@ const mockTestSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for faster queries
-mockTestSchema.index({ testId: 1 });
+// 🔥 FIX: Create indexes only once using schema.index()
+mockTestSchema.index({ testId: 1 }, { unique: true });
 mockTestSchema.index({ examType: 1 });
 
 module.exports = mongoose.model('MockTest', mockTestSchema);

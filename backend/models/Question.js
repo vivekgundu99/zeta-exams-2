@@ -1,10 +1,10 @@
+// backend/models/Question.js - FIXED DUPLICATE INDEX WARNINGS
 const mongoose = require('mongoose');
 
 const questionSchema = new mongoose.Schema({
   questionId: {
     type: String,
-    required: true,
-    unique: true
+    required: true
   },
   serialNumber: {
     type: String,
@@ -99,8 +99,8 @@ const questionSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Indexes for faster queries
-questionSchema.index({ questionId: 1 });
+// 🔥 FIX: Create indexes only once using schema.index()
+questionSchema.index({ questionId: 1 }, { unique: true });
 questionSchema.index({ serialNumber: 1 });
 questionSchema.index({ examType: 1, subject: 1, chapter: 1, topic: 1 });
 questionSchema.index({ chapterId: 1 });

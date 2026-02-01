@@ -1,4 +1,4 @@
-// backend/config/database.js - PERFORMANCE OPTIMIZED
+// backend/config/database.js - PERFORMANCE OPTIMIZED - FIXED
 const mongoose = require('mongoose');
 
 const connectDB = async () => {
@@ -33,11 +33,6 @@ const connectDB = async () => {
     if (process.env.NODE_ENV !== 'production') {
       mongoose.set('debug', true);
     }
-    
-    // 🔥 PERFORMANCE: Set default lean behavior for better performance
-    mongoose.Query.prototype.setOptions({
-      lean: false // Keep normal for compatibility, but use .lean() in queries
-    });
 
     // Handle connection events
     mongoose.connection.on('error', (err) => {

@@ -1,10 +1,10 @@
+// backend/models/UserData.js - FIXED DUPLICATE INDEX WARNINGS
 const mongoose = require('mongoose');
 
 const userDataSchema = new mongoose.Schema({
   userId: {
     type: String,
     required: true,
-    unique: true,
     ref: 'User'
   },
   password: {
@@ -64,7 +64,7 @@ const userDataSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for faster queries
-userDataSchema.index({ userId: 1 });
+// 🔥 FIX: Create index only once using schema.index()
+userDataSchema.index({ userId: 1 }, { unique: true });
 
 module.exports = mongoose.model('UserData', userDataSchema);

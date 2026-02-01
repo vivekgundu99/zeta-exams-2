@@ -1,3 +1,4 @@
+// backend/models/Ticket.js - FIXED DUPLICATE INDEX WARNINGS
 const mongoose = require('mongoose');
 
 const messageSchema = new mongoose.Schema({
@@ -20,8 +21,7 @@ const messageSchema = new mongoose.Schema({
 const ticketSchema = new mongoose.Schema({
   ticketNumber: {
     type: String,
-    required: true,
-    unique: true
+    required: true
   },
   userId: {
     type: String,
@@ -71,8 +71,8 @@ const ticketSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for faster queries
-ticketSchema.index({ ticketNumber: 1 });
+// 🔥 FIX: Create indexes only once using schema.index()
+ticketSchema.index({ ticketNumber: 1 }, { unique: true });
 ticketSchema.index({ userId: 1 });
 ticketSchema.index({ status: 1 });
 

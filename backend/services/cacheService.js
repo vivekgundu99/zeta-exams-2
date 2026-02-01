@@ -1,4 +1,4 @@
-// backend/services/cacheService.js - PERFORMANCE ENHANCED
+// backend/services/cacheService.js - SERVERLESS-SAFE WITH GRACEFUL DEGRADATION
 const { getRedisClient, isRedisAvailable } = require('../config/redis');
 
 class CacheService {
@@ -9,33 +9,64 @@ class CacheService {
 
   // Initialize Redis client
   init() {
-    this.redis = getRedisClient();
+    try {
+      this.redis = getRedisClient();
+      console.log('🔧 CacheService initialized');
+    } catch (error) {
+      console.log('⚠️ CacheService init warning:', error.message);
+      this.redis = null;
+    }
   }
 
   // Check if cache is available
   isAvailable() {
-    return isRedisAvailable();
+    try {
+      return isRedisAvailable();
+    } catch (error) {
+      return false;
+    }
   }
 
-  // 🔥 PERFORMANCE: Safe get with fallback
+  // 🔥 SAFE: Get with automatic fallback
   async safeGet(key) {
     if (!this.isAvailable()) return null;
     try {
-      return await this.redis.get(key);
+      const result = await Promise.race([
+        this.redis.get(key),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 500))
+      ]);
+      return result;
     } catch (error) {
-      console.error(`Redis GET error for ${key}:`, error.message);
+      // Silent fail - return null
       return null;
     }
   }
 
-  // 🔥 PERFORMANCE: Safe set with fallback
+  // 🔥 SAFE: Set with automatic fallback
   async safeSet(key, value, ttl) {
     if (!this.isAvailable()) return false;
     try {
-      await this.redis.setex(key, ttl, value);
+      await Promise.race([
+        this.redis.setex(key, ttl, value),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 500))
+      ]);
       return true;
     } catch (error) {
-      console.error(`Redis SET error for ${key}:`, error.message);
+      // Silent fail
+      return false;
+    }
+  }
+
+  // 🔥 SAFE: Delete with automatic fallback
+  async safeDel(key) {
+    if (!this.isAvailable()) return false;
+    try {
+      await Promise.race([
+        this.redis.del(key),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 500))
+      ]);
+      return true;
+    } catch (error) {
       return false;
     }
   }
@@ -57,14 +88,7 @@ class CacheService {
   }
 
   async invalidateLimits(userId) {
-    if (!this.isAvailable()) return false;
-    try {
-      await this.redis.del(`limits:${userId}`);
-      return true;
-    } catch (error) {
-      console.error('Redis invalidateLimits error:', error.message);
-      return false;
-    }
+    return await this.safeDel(`limits:${userId}`);
   }
 
   // ==========================================
@@ -84,13 +108,7 @@ class CacheService {
   }
 
   async invalidateUserProfile(userId) {
-    if (!this.isAvailable()) return false;
-    try {
-      await this.redis.del(`profile:${userId}`);
-      return true;
-    } catch (error) {
-      return false;
-    }
+    return await this.safeDel(`profile:${userId}`);
   }
 
   // ==========================================
@@ -110,13 +128,7 @@ class CacheService {
   }
 
   async invalidateSubscription(userId) {
-    if (!this.isAvailable()) return false;
-    try {
-      await this.redis.del(`subscription:${userId}`);
-      return true;
-    } catch (error) {
-      return false;
-    }
+    return await this.safeDel(`subscription:${userId}`);
   }
 
   // ==========================================
@@ -170,13 +182,7 @@ class CacheService {
   }
 
   async invalidateAnalytics(userId) {
-    if (!this.isAvailable()) return false;
-    try {
-      await this.redis.del(`analytics:${userId}`);
-      return true;
-    } catch (error) {
-      return false;
-    }
+    return await this.safeDel(`analytics:${userId}`);
   }
 
   // ==========================================
@@ -215,7 +221,10 @@ class CacheService {
     if (!this.isAvailable()) return { allowed: true };
     
     try {
-      const current = await this.redis.incr(key);
+      const current = await Promise.race([
+        this.redis.incr(key),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 500))
+      ]);
       
       if (current === 1) {
         await this.redis.expire(key, window);
@@ -230,7 +239,7 @@ class CacheService {
         resetIn: ttl
       };
     } catch (error) {
-      console.error('Redis checkRateLimit error:', error.message);
+      // Fail open - allow request if Redis is down
       return { allowed: true };
     }
   }
@@ -250,10 +259,12 @@ class CacheService {
         `analytics:${userId}`
       ];
       
-      await this.redis.del(...keys);
+      await Promise.race([
+        this.redis.del(...keys),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 1000))
+      ]);
       return true;
     } catch (error) {
-      console.error('Redis invalidateUserCache error:', error.message);
       return false;
     }
   }
@@ -263,11 +274,18 @@ class CacheService {
   // ==========================================
   
   async getCacheStats() {
-    if (!this.isAvailable()) return null;
+    if (!this.isAvailable()) return { status: 'disconnected' };
     
     try {
-      const info = await this.redis.info('stats');
-      const dbsize = await this.redis.dbsize();
+      const info = await Promise.race([
+        this.redis.info('stats'),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 1000))
+      ]);
+      
+      const dbsize = await Promise.race([
+        this.redis.dbsize(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 500))
+      ]);
       
       return {
         connected: true,
@@ -275,8 +293,7 @@ class CacheService {
         info
       };
     } catch (error) {
-      console.error('Redis getCacheStats error:', error.message);
-      return null;
+      return { status: 'timeout' };
     }
   }
 

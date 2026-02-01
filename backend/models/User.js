@@ -1,23 +1,20 @@
-// backend/models/User.js - UPDATED WITH SESSION VERSION
+// backend/models/User.js - FIXED DUPLICATE INDEX WARNINGS
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
   userId: {
     type: String,
-    unique: true,
     required: true
   },
   email: {
     type: String,
     required: true,
-    unique: true,
     lowercase: true,
     trim: true
   },
   phoneNumber: {
     type: String,
-    required: true,
-    unique: true
+    required: true
   },
   
   // 🔥 SESSION VERSION - KEY FIELD FOR SINGLE DEVICE LOGIN
@@ -46,9 +43,9 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for faster queries
-userSchema.index({ email: 1 });
-userSchema.index({ userId: 1 });
-userSchema.index({ phoneNumber: 1 });
+// 🔥 FIX: Create indexes only once using schema.index()
+userSchema.index({ email: 1 }, { unique: true });
+userSchema.index({ userId: 1 }, { unique: true });
+userSchema.index({ phoneNumber: 1 }, { unique: true });
 
 module.exports = mongoose.model('User', userSchema);

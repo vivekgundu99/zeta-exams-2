@@ -1,10 +1,10 @@
+// backend/models/GiftCode.js - FIXED DUPLICATE INDEX WARNINGS
 const mongoose = require('mongoose');
 
 const giftCodeSchema = new mongoose.Schema({
   code: {
     type: String,
     required: true,
-    unique: true,
     uppercase: true
   },
   subscriptionType: {
@@ -43,8 +43,8 @@ const giftCodeSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for faster queries
-giftCodeSchema.index({ code: 1 });
+// 🔥 FIX: Create indexes only once using schema.index()
+giftCodeSchema.index({ code: 1 }, { unique: true });
 giftCodeSchema.index({ status: 1 });
 
 // Method to decode gift code
