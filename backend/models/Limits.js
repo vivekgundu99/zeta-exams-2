@@ -64,7 +64,7 @@ limitsSchema.index({ limitResetTime: 1 });
 limitsSchema.statics.getLimitsForSubscription = function(subscription) {
   const limits = {
     free: {
-      questions: 50,
+      questions: 20,
       chapterTests: 0,
       mockTests: 0,
       tickets: 0  // Free users cannot create tickets

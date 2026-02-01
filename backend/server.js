@@ -1,17 +1,24 @@
-// backend/server.js - WITH SUBSCRIPTION EXPIRY SCHEDULER
+// backend/server.js - WITH REDIS CACHING
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const cookieParser = require('cookie-parser');
 const connectDB = require('./config/database');
+const { connectRedis } = require('./config/redis');
+const cacheService = require('./services/cacheService');
 const { scheduleDailyReset, autoResetLimits } = require('./middleware/limitsReset');
-const { scheduleSubscriptionExpiry } = require('./utils/subscriptionScheduler'); // 🔥 NEW
+const { scheduleSubscriptionExpiry } = require('./utils/subscriptionScheduler');
 require('dotenv').config();
 
 const app = express();
 
+// Connect to MongoDB
 connectDB();
+
+// 🔥 Connect to Redis (Upstash)
+connectRedis();
+cacheService.init();
 
 console.log('');
 console.log('🚀 ==========================================');
@@ -19,6 +26,7 @@ console.log('🚀 ZETA EXAMS BACKEND - STARTING');
 console.log('🚀 ==========================================');
 console.log('Environment:', process.env.NODE_ENV || 'development');
 console.log('MongoDB URI:', process.env.MONGODB_URI ? '✅ Set' : '❌ Not Set');
+console.log('Redis URL:', process.env.UPSTASH_REDIS_URL ? '✅ Set' : '❌ Not Set');
 console.log('JWT Secret:', process.env.JWT_SECRET ? '✅ Set (length: ' + process.env.JWT_SECRET.length + ')' : '❌ Not Set');
 console.log('Resend API Key:', process.env.RESEND_API_KEY ? '✅ Set' : '❌ Not Set');
 console.log('Razorpay Key ID:', process.env.RAZORPAY_KEY_ID ? '✅ Set' : '❌ Not Set');
@@ -97,12 +105,12 @@ if (process.env.NODE_ENV === 'production' || process.env.ENABLE_SCHEDULER === 't
   scheduleDailyReset();
   console.log('✅ Daily limits reset scheduler started (4 AM IST)');
   
-  // 🔥 NEW: Subscription expiry check every hour
+  // Subscription expiry check every hour
   scheduleSubscriptionExpiry();
   console.log('✅ Subscription expiry scheduler started (every hour)');
 }
 
-app.get('/api/health', (req, res) => {
+app.get('/api/health', async (req, res) => {
   const health = {
     success: true,
     message: 'Zeta Exams API is running',
@@ -110,14 +118,21 @@ app.get('/api/health', (req, res) => {
     environment: process.env.NODE_ENV || 'development',
     checks: {
       mongodb: process.env.MONGODB_URI ? 'configured' : 'missing',
+      redis: cacheService.isAvailable() ? 'connected' : 'disconnected',
       jwtSecret: process.env.JWT_SECRET ? 'configured' : 'missing',
       resend: process.env.RESEND_API_KEY ? 'configured' : 'missing',
       razorpay: process.env.RAZORPAY_KEY_ID ? 'configured' : 'missing',
       trustProxy: app.get('trust proxy') ? 'enabled' : 'disabled',
       limitsScheduler: 'enabled',
-      subscriptionScheduler: 'enabled' // 🔥 NEW
+      subscriptionScheduler: 'enabled'
     }
   };
+
+  // 🔥 Add Redis stats if available
+  if (cacheService.isAvailable()) {
+    const stats = await cacheService.getCacheStats();
+    health.redis = stats;
+  }
   
   res.status(200).json(health);
 });
@@ -126,7 +141,8 @@ app.get('/', (req, res) => {
   res.json({
     success: true,
     message: 'Welcome to Zeta Exams API',
-    version: '1.0.0',
+    version: '2.0.0',
+    features: ['Redis Caching', 'Rate Limiting', 'Auto Scaling'],
     endpoints: {
       health: '/api/health',
       auth: '/api/auth',

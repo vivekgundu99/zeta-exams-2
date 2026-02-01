@@ -52,7 +52,7 @@ export default function SubscriptionPage() {
       name: 'Free',
       price: 0,
       features: [
-        { text: '50 Questions per day', available: true },
+        { text: '20 Questions per day', available: true },
         { text: 'Chapter Tests', available: false },
         { text: 'Formulas & Flashcards', available: false },
         { text: 'Mock Tests', available: false },
@@ -203,7 +203,7 @@ export default function SubscriptionPage() {
                 <tbody>
                   <tr className="border-b border-gray-100">
                     <td className="p-4 font-medium text-gray-900">Questions per day</td>
-                    <td className="p-4 text-center">50</td>
+                    <td className="p-4 text-center">20</td>
                     <td className="p-4 text-center">200</td>
                     <td className="p-4 text-center bg-yellow-50 font-semibold">5000</td>
                   </tr>

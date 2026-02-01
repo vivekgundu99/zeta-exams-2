@@ -1,4 +1,4 @@
-// backend/routes/user.js - FIXED VERSION WITH PROPER LIMITS
+// backend/routes/user.js - WITH REDIS CACHING
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
@@ -10,9 +10,10 @@ const { authenticate } = require('../middleware/auth');
 const { validateUserDetails } = require('../middleware/validator');
 const { decryptPhone } = require('../utils/encryption');
 const { needsLimitReset, getNextResetTime } = require('../utils/helpers');
+const cacheService = require('../services/cacheService');
 
 // @route   GET /api/user/profile
-// @desc    Get user profile with subscription and limits (WITH AUTO-RESET)
+// @desc    Get user profile with subscription and limits (WITH REDIS CACHING)
 // @access  Private
 router.get('/profile', authenticate, async (req, res) => {
   try {
@@ -36,6 +37,32 @@ router.get('/profile', authenticate, async (req, res) => {
       });
     }
 
+    // 🔥 TRY CACHE FIRST
+    const cachedProfile = await cacheService.getUserProfile(req.user.userId);
+    const cachedLimits = await cacheService.getLimits(req.user.userId);
+    const cachedSubscription = await cacheService.getSubscription(req.user.userId);
+
+    if (cachedProfile && cachedLimits && cachedSubscription) {
+      console.log('✅ Serving from cache');
+      
+      // Still check if limits need reset
+      if (needsLimitReset(cachedLimits.resetTime)) {
+        console.log('🔄 Limits need reset - invalidating cache');
+        await cacheService.invalidateLimits(req.user.userId);
+      } else {
+        return res.status(200).json({
+          success: true,
+          user: cachedProfile,
+          subscription: cachedSubscription,
+          limits: cachedLimits.limits,
+          resetTime: cachedLimits.resetTime
+        });
+      }
+    }
+
+    // 🔥 CACHE MISS - FETCH FROM DATABASE
+    console.log('⚠️ Cache miss - fetching from database');
+
     const user = await User.findOne({ userId: req.user.userId });
     const userData = await UserData.findOne({ userId: req.user.userId });
     let subscription = await Subscription.findOne({ userId: req.user.userId });
@@ -49,7 +76,7 @@ router.get('/profile', authenticate, async (req, res) => {
       });
     }
 
-    // FIX: Create subscription if doesn't exist
+    // Create subscription if doesn't exist
     if (!subscription) {
       console.log('⚠️ Creating missing subscription for user');
       subscription = await Subscription.create({
@@ -63,7 +90,7 @@ router.get('/profile', authenticate, async (req, res) => {
       });
     }
 
-    // FIX: Create limits if doesn't exist
+    // Create limits if doesn't exist
     if (!limits) {
       console.log('⚠️ Creating missing limits for user');
       limits = await Limits.create({
@@ -77,7 +104,7 @@ router.get('/profile', authenticate, async (req, res) => {
       });
     }
 
-    // 🔥 AUTO-RESET limits if needed
+    // Auto-reset limits if needed
     if (needsLimitReset(limits.limitResetTime)) {
       console.log('🔄 Auto-resetting limits - time passed');
       limits.questionCount = 0;
@@ -111,35 +138,52 @@ router.get('/profile', authenticate, async (req, res) => {
     // Check limits status
     const limitStatus = limits.checkLimits();
 
-    console.log('✅ Profile fetched successfully with limits:', limitStatus);
+    // 🔥 PREPARE RESPONSE DATA
+    const userProfile = {
+      userId: user.userId,
+      email: user.email,
+      phoneNumber: decryptedPhone,
+      name: userData.name,
+      profession: userData.profession,
+      grade: userData.grade,
+      exam: userData.exam,
+      collegeName: userData.collegeName,
+      state: userData.state,
+      lifeAmbition: userData.lifeAmbition,
+      userDetails: userData.userDetails,
+      lastLoginTime: user.lastLoginTime
+    };
+
+    const subscriptionData = {
+      userId: subscription.userId,
+      exam: subscription.exam,
+      subscription: subscription.subscription,
+      subscriptionType: subscription.subscriptionType,
+      subscriptionStatus: subscription.subscriptionStatus,
+      subscriptionStartTime: subscription.subscriptionStartTime,
+      subscriptionEndTime: subscription.subscriptionEndTime
+    };
+
+    const limitsData = {
+      limits: limitStatus,
+      resetTime: limits.limitResetTime
+    };
+
+    // 🔥 CACHE THE DATA
+    await Promise.all([
+      cacheService.setUserProfile(req.user.userId, userProfile, 1800), // 30 min
+      cacheService.setSubscription(req.user.userId, subscriptionData, 3600), // 1 hour
+      cacheService.setLimits(req.user.userId, limitsData, 3600) // 1 hour
+    ]);
+
+    console.log('✅ Profile cached successfully');
 
     res.status(200).json({
       success: true,
-      user: {
-        userId: user.userId,
-        email: user.email,
-        phoneNumber: decryptedPhone,
-        name: userData.name,
-        profession: userData.profession,
-        grade: userData.grade,
-        exam: userData.exam,
-        collegeName: userData.collegeName,
-        state: userData.state,
-        lifeAmbition: userData.lifeAmbition,
-        userDetails: userData.userDetails,
-        lastLoginTime: user.lastLoginTime
-      },
-      subscription: {
-        userId: subscription.userId,
-        exam: subscription.exam,
-        subscription: subscription.subscription,
-        subscriptionType: subscription.subscriptionType,
-        subscriptionStatus: subscription.subscriptionStatus,
-        subscriptionStartTime: subscription.subscriptionStartTime,
-        subscriptionEndTime: subscription.subscriptionEndTime
-      },
+      user: userProfile,
+      subscription: subscriptionData,
       limits: limitStatus,
-      resetTime: limits.limitResetTime // 🔥 Include reset time
+      resetTime: limits.limitResetTime
     });
 
   } catch (error) {
@@ -255,6 +299,10 @@ router.post('/update-details', authenticate, async (req, res) => {
       console.log('✅ Limits created');
     }
 
+    // 🔥 INVALIDATE CACHE
+    await cacheService.invalidateUserCache(req.user.userId);
+    console.log('✅ Cache invalidated after profile update');
+
     res.status(200).json({
       success: true,
       message: 'User details updated successfully',
@@ -316,6 +364,10 @@ router.put('/edit-details', authenticate, async (req, res) => {
         { exam: exam }
       );
     }
+
+    // 🔥 INVALIDATE CACHE
+    await cacheService.invalidateUserCache(req.user.userId);
+    console.log('✅ Cache invalidated after details edit');
 
     console.log('✅ Details updated successfully');
 
@@ -415,11 +467,26 @@ router.post('/change-password', authenticate, async (req, res) => {
 });
 
 // @route   GET /api/user/limits
-// @desc    Get current usage limits (BACKEND ONLY - SINGLE SOURCE OF TRUTH)
+// @desc    Get current usage limits (WITH REDIS CACHING)
 // @access  Private
 router.get('/limits', authenticate, async (req, res) => {
   try {
     console.log('📊 GET /api/user/limits - User:', req.user.userId);
+
+    // 🔥 TRY CACHE FIRST
+    const cachedLimits = await cacheService.getLimits(req.user.userId);
+    
+    if (cachedLimits && !needsLimitReset(cachedLimits.resetTime)) {
+      console.log('✅ Serving limits from cache');
+      return res.status(200).json({
+        success: true,
+        limits: cachedLimits.limits,
+        resetTime: cachedLimits.resetTime
+      });
+    }
+
+    // 🔥 CACHE MISS OR EXPIRED
+    console.log('⚠️ Cache miss - fetching limits from database');
 
     let limits = await Limits.findOne({ userId: req.user.userId });
     const subscription = await Subscription.findOne({ userId: req.user.userId });
@@ -438,7 +505,7 @@ router.get('/limits', authenticate, async (req, res) => {
       });
     }
 
-    // 🔥 AUTO-RESET if time passed
+    // Auto-reset if time passed
     if (needsLimitReset(limits.limitResetTime)) {
       console.log('🔄 Auto-resetting limits for user:', req.user.userId);
       
@@ -466,6 +533,14 @@ router.get('/limits', authenticate, async (req, res) => {
 
     const limitStatus = limits.checkLimits();
 
+    // 🔥 CACHE THE LIMITS
+    const limitsData = {
+      limits: limitStatus,
+      resetTime: limits.limitResetTime
+    };
+    await cacheService.setLimits(req.user.userId, limitsData, 3600); // 1 hour
+    console.log('✅ Limits cached successfully');
+
     res.status(200).json({
       success: true,
       limits: limitStatus,
@@ -481,8 +556,6 @@ router.get('/limits', authenticate, async (req, res) => {
     });
   }
 });
-
-// backend/routes/user.js - ADD THIS NEW ENDPOINT
 
 // @route   POST /api/user/check-and-reset-limits
 // @desc    Check if limits need reset and reset them (called from frontend)
@@ -529,6 +602,10 @@ router.post('/check-and-reset-limits', authenticate, async (req, res) => {
       limits.lastUpdated = new Date();
       
       await limits.save();
+
+      // 🔥 INVALIDATE CACHE
+      await cacheService.invalidateLimits(req.user.userId);
+      console.log('✅ Cache invalidated after limits reset');
       
       console.log('✅ Limits reset successfully');
       
