@@ -1,4 +1,4 @@
-// backend/routes/user.js - WITH REDIS CACHING
+// backend/routes/user.js - COMPREHENSIVE SUBSCRIPTION FIX
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
@@ -12,9 +12,7 @@ const { decryptPhone } = require('../utils/encryption');
 const { needsLimitReset, getNextResetTime } = require('../utils/helpers');
 const cacheService = require('../services/cacheService');
 
-// @route   GET /api/user/profile
-// @desc    Get user profile with subscription and limits (WITH REDIS CACHING)
-// @access  Private
+// 🔥 COMPREHENSIVE FIX: Get profile with subscription initialization
 router.get('/profile', authenticate, async (req, res) => {
   try {
     console.log('📊 GET /api/user/profile - User:', req.user.userId);
@@ -76,7 +74,7 @@ router.get('/profile', authenticate, async (req, res) => {
       });
     }
 
-    // Create subscription if doesn't exist
+    // 🔥 FIX 1: Create subscription if doesn't exist (for new users)
     if (!subscription) {
       console.log('⚠️ Creating missing subscription for user');
       subscription = await Subscription.create({
@@ -90,7 +88,27 @@ router.get('/profile', authenticate, async (req, res) => {
       });
     }
 
-    // Create limits if doesn't exist
+    // 🔥 FIX 2: Check expiry and auto-downgrade
+    if (subscription.subscription !== 'free') {
+      const isExpired = subscription.isExpired();
+      
+      if (isExpired && subscription.subscriptionStatus === 'active') {
+        console.log('⚠️ Subscription expired - Auto-downgrading to FREE');
+        
+        subscription.previousSubscription = subscription.subscription;
+        subscription.previousSubscriptionType = subscription.subscriptionType;
+        subscription.subscription = 'free';
+        subscription.subscriptionType = 'original';
+        subscription.subscriptionStatus = 'inactive';
+        subscription.subscriptionEndTime = null;
+        
+        await subscription.save();
+        
+        console.log('✅ Auto-downgraded to FREE');
+      }
+    }
+
+    // 🔥 FIX 3: Create limits if doesn't exist
     if (!limits) {
       console.log('⚠️ Creating missing limits for user');
       limits = await Limits.create({
@@ -171,9 +189,9 @@ router.get('/profile', authenticate, async (req, res) => {
 
     // 🔥 CACHE THE DATA
     await Promise.all([
-      cacheService.setUserProfile(req.user.userId, userProfile, 1800), // 30 min
-      cacheService.setSubscription(req.user.userId, subscriptionData, 3600), // 1 hour
-      cacheService.setLimits(req.user.userId, limitsData, 3600) // 1 hour
+      cacheService.setUserProfile(req.user.userId, userProfile, 1800),
+      cacheService.setSubscription(req.user.userId, subscriptionData, 3600),
+      cacheService.setLimits(req.user.userId, limitsData, 3600)
     ]);
 
     console.log('✅ Profile cached successfully');
@@ -196,9 +214,7 @@ router.get('/profile', authenticate, async (req, res) => {
   }
 });
 
-// @route   POST /api/user/update-details
-// @desc    Update user details (first time setup)
-// @access  Private
+// 🔥 FIX: Update user details with subscription sync
 router.post('/update-details', authenticate, async (req, res) => {
   try {
     const { name, profession, grade, exam, collegeName, state, lifeAmbition } = req.body;
@@ -263,7 +279,7 @@ router.post('/update-details', authenticate, async (req, res) => {
 
     await userData.save();
 
-    // CREATE OR UPDATE SUBSCRIPTION
+    // 🔥 CREATE OR UPDATE SUBSCRIPTION (ensuring it exists)
     let subscription = await Subscription.findOne({ userId: req.user.userId });
     
     if (!subscription) {
@@ -283,13 +299,13 @@ router.post('/update-details', authenticate, async (req, res) => {
       console.log('✅ Subscription updated');
     }
 
-    // CREATE OR UPDATE LIMITS
+    // 🔥 CREATE OR UPDATE LIMITS (ensuring it exists)
     let limits = await Limits.findOne({ userId: req.user.userId });
     
     if (!limits) {
       limits = await Limits.create({
         userId: req.user.userId,
-        subscription: 'free',
+        subscription: subscription.subscription,
         questionCount: 0,
         chapterTestCount: 0,
         mockTestCount: 0,
@@ -328,9 +344,7 @@ router.post('/update-details', authenticate, async (req, res) => {
   }
 });
 
-// @route   PUT /api/user/edit-details
-// @desc    Edit existing user details
-// @access  Private
+// Edit existing user details
 router.put('/edit-details', authenticate, async (req, res) => {
   try {
     const { name, profession, grade, exam, collegeName, state, lifeAmbition } = req.body;
@@ -395,9 +409,7 @@ router.put('/edit-details', authenticate, async (req, res) => {
   }
 });
 
-// @route   POST /api/user/change-password
-// @desc    Change password
-// @access  Private
+// Change password
 router.post('/change-password', authenticate, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
@@ -466,14 +478,11 @@ router.post('/change-password', authenticate, async (req, res) => {
   }
 });
 
-// @route   GET /api/user/limits
-// @desc    Get current usage limits (WITH REDIS CACHING)
-// @access  Private
+// Get current usage limits
 router.get('/limits', authenticate, async (req, res) => {
   try {
     console.log('📊 GET /api/user/limits - User:', req.user.userId);
 
-    // 🔥 TRY CACHE FIRST
     const cachedLimits = await cacheService.getLimits(req.user.userId);
     
     if (cachedLimits && !needsLimitReset(cachedLimits.resetTime)) {
@@ -485,13 +494,11 @@ router.get('/limits', authenticate, async (req, res) => {
       });
     }
 
-    // 🔥 CACHE MISS OR EXPIRED
     console.log('⚠️ Cache miss - fetching limits from database');
 
     let limits = await Limits.findOne({ userId: req.user.userId });
     const subscription = await Subscription.findOne({ userId: req.user.userId });
 
-    // Create limits if doesn't exist
     if (!limits) {
       console.log('⚠️ Creating missing limits for user');
       limits = await Limits.create({
@@ -505,7 +512,6 @@ router.get('/limits', authenticate, async (req, res) => {
       });
     }
 
-    // Auto-reset if time passed
     if (needsLimitReset(limits.limitResetTime)) {
       console.log('🔄 Auto-resetting limits for user:', req.user.userId);
       
@@ -524,7 +530,6 @@ router.get('/limits', authenticate, async (req, res) => {
       console.log('✅ Limits reset successfully');
     }
 
-    // Sync subscription if changed
     if (limits.subscription !== subscription?.subscription) {
       console.log('🔄 Syncing limits subscription:', subscription?.subscription);
       limits.subscription = subscription?.subscription || 'free';
@@ -533,12 +538,11 @@ router.get('/limits', authenticate, async (req, res) => {
 
     const limitStatus = limits.checkLimits();
 
-    // 🔥 CACHE THE LIMITS
     const limitsData = {
       limits: limitStatus,
       resetTime: limits.limitResetTime
     };
-    await cacheService.setLimits(req.user.userId, limitsData, 3600); // 1 hour
+    await cacheService.setLimits(req.user.userId, limitsData, 3600);
     console.log('✅ Limits cached successfully');
 
     res.status(200).json({
@@ -557,9 +561,7 @@ router.get('/limits', authenticate, async (req, res) => {
   }
 });
 
-// @route   POST /api/user/check-and-reset-limits
-// @desc    Check if limits need reset and reset them (called from frontend)
-// @access  Private
+// Check and reset limits
 router.post('/check-and-reset-limits', authenticate, async (req, res) => {
   try {
     console.log('🔄 Checking limits reset for user:', req.user.userId);
@@ -586,7 +588,6 @@ router.post('/check-and-reset-limits', authenticate, async (req, res) => {
       return res.json({ success: true, reset: false, message: 'Limits created' });
     }
 
-    // Check if reset is needed
     if (needsLimitReset(limits.limitResetTime)) {
       console.log('🔄 Resetting limits - time passed');
       
@@ -603,7 +604,6 @@ router.post('/check-and-reset-limits', authenticate, async (req, res) => {
       
       await limits.save();
 
-      // 🔥 INVALIDATE CACHE
       await cacheService.invalidateLimits(req.user.userId);
       console.log('✅ Cache invalidated after limits reset');
       

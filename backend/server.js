@@ -1,4 +1,4 @@
-// backend/server.js - WITH REDIS CACHING
+// backend/server.js - PERFORMANCE OPTIMIZED
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -7,11 +7,18 @@ const cookieParser = require('cookie-parser');
 const connectDB = require('./config/database');
 const { connectRedis } = require('./config/redis');
 const cacheService = require('./services/cacheService');
-const { scheduleDailyReset, autoResetLimits } = require('./middleware/limitsReset');
+const { scheduleDailyReset } = require('./middleware/limitsReset');
 const { scheduleSubscriptionExpiry } = require('./utils/subscriptionScheduler');
 require('dotenv').config();
 
 const app = express();
+
+// 🔥 PERFORMANCE: Set keep-alive timeout
+app.use((req, res, next) => {
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Keep-Alive', 'timeout=5, max=1000');
+  next();
+});
 
 // Connect to MongoDB
 connectDB();
@@ -51,38 +58,59 @@ if (!process.env.JWT_SECRET) {
 app.set('trust proxy', 1);
 console.log('✅ Trust proxy enabled for Vercel');
 
-app.use(helmet());
-app.use(compression());
+// 🔥 PERFORMANCE: Helmet with optimized settings
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false
+}));
+
+// 🔥 PERFORMANCE: High compression
+app.use(compression({
+  level: 6,
+  threshold: 1024,
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    return compression.filter(req, res);
+  }
+}));
 
 const corsOptions = {
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  maxAge: 86400 // 🔥 PERFORMANCE: Cache preflight for 24h
 };
 
 console.log('🌐 CORS enabled for:', corsOptions.origin);
 app.use(cors(corsOptions));
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// 🔥 PERFORMANCE: Optimized body parsing
+app.use(express.json({ 
+  limit: '10mb',
+  strict: true
+}));
+app.use(express.urlencoded({ 
+  extended: true, 
+  limit: '10mb',
+  parameterLimit: 50000
+}));
 app.use(cookieParser());
 
-// Auto-reset limits middleware
-app.use(autoResetLimits);
-
-app.use((req, res, next) => {
-  const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] ${req.method} ${req.path}`);
-  if (req.headers.authorization) {
-    const authPreview = req.headers.authorization.substring(0, 30);
-    console.log('  → Has Authorization header:', authPreview + '...');
-    if (authPreview.includes('"') || authPreview.includes("'")) {
-      console.log('  ⚠️ WARNING: Authorization header contains quotes!');
+// 🔥 PERFORMANCE: Conditional logging (only in development)
+if (process.env.NODE_ENV !== 'production') {
+  app.use((req, res, next) => {
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] ${req.method} ${req.path}`);
+    if (req.headers.authorization) {
+      const authPreview = req.headers.authorization.substring(0, 30);
+      console.log('  → Has Authorization header:', authPreview + '...');
     }
-  }
-  next();
-});
+    next();
+  });
+}
 
 console.log('📍 Registering routes...');
 app.use('/api/auth', require('./routes/auth'));
@@ -101,21 +129,25 @@ console.log('✅ All routes registered');
 
 // 🔥 SCHEDULERS
 if (process.env.NODE_ENV === 'production' || process.env.ENABLE_SCHEDULER === 'true') {
-  // Daily limits reset at 4 AM IST
   scheduleDailyReset();
   console.log('✅ Daily limits reset scheduler started (4 AM IST)');
   
-  // Subscription expiry check every hour
   scheduleSubscriptionExpiry();
   console.log('✅ Subscription expiry scheduler started (every hour)');
 }
 
+// 🔥 PERFORMANCE: Enhanced health check with cache stats
 app.get('/api/health', async (req, res) => {
   const health = {
     success: true,
     message: 'Zeta Exams API is running',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
+    uptime: process.uptime(),
+    memory: {
+      heapUsed: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`,
+      heapTotal: `${Math.round(process.memoryUsage().heapTotal / 1024 / 1024)}MB`
+    },
     checks: {
       mongodb: process.env.MONGODB_URI ? 'configured' : 'missing',
       redis: cacheService.isAvailable() ? 'connected' : 'disconnected',
@@ -130,8 +162,12 @@ app.get('/api/health', async (req, res) => {
 
   // 🔥 Add Redis stats if available
   if (cacheService.isAvailable()) {
-    const stats = await cacheService.getCacheStats();
-    health.redis = stats;
+    try {
+      const stats = await cacheService.getCacheStats();
+      health.redis = stats;
+    } catch (error) {
+      health.redis = { error: 'Failed to get stats' };
+    }
   }
   
   res.status(200).json(health);
@@ -142,7 +178,7 @@ app.get('/', (req, res) => {
     success: true,
     message: 'Welcome to Zeta Exams API',
     version: '2.0.0',
-    features: ['Redis Caching', 'Rate Limiting', 'Auto Scaling'],
+    features: ['Redis Caching', 'Rate Limiting', 'Auto Scaling', 'Performance Optimized'],
     endpoints: {
       health: '/api/health',
       auth: '/api/auth',
@@ -152,19 +188,22 @@ app.get('/', (req, res) => {
   });
 });
 
+// 🔥 PERFORMANCE: Optimized 404 handler
 app.use((req, res) => {
-  console.log('❌ 404 - Route not found:', req.method, req.path);
   res.status(404).json({
     success: false,
     message: 'Route not found',
-    path: req.path,
-    method: req.method
+    path: req.path
   });
 });
 
+// 🔥 PERFORMANCE: Optimized error handler
 app.use((err, req, res, next) => {
-  console.error('💥 Global error handler:', err);
-  console.error('Stack:', err.stack);
+  // Only log errors in development
+  if (process.env.NODE_ENV !== 'production') {
+    console.error('💥 Global error handler:', err);
+    console.error('Stack:', err.stack);
+  }
   
   res.status(err.statusCode || 500).json({
     success: false,

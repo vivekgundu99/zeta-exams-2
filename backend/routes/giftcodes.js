@@ -1,4 +1,4 @@
-// backend/routes/giftcodes.js - FIXED UPGRADE LOGIC
+// backend/routes/giftcodes.js - COMPREHENSIVE UPGRADE FIX
 const express = require('express');
 const router = express.Router();
 const GiftCode = require('../models/GiftCode');
@@ -6,7 +6,7 @@ const Subscription = require('../models/Subscription');
 const Limits = require('../models/Limits');
 const { authenticate } = require('../middleware/auth');
 const { validateGiftCode } = require('../middleware/validator');
-const { calculateSubscriptionEndDate } = require('../utils/helpers');
+const { calculateSubscriptionEndDate, getNextResetTime } = require('../utils/helpers');
 
 // Validate gift code
 router.post('/validate', authenticate, validateGiftCode, async (req, res) => {
@@ -42,7 +42,7 @@ router.post('/validate', authenticate, validateGiftCode, async (req, res) => {
   }
 });
 
-// 🔥 FIXED: Redeem gift code with proper upgrade logic
+// 🔥 COMPREHENSIVE FIX: Redeem gift code with ALL upgrade paths
 router.post('/redeem', authenticate, validateGiftCode, async (req, res) => {
   try {
     const { code } = req.body;
@@ -66,11 +66,11 @@ router.post('/redeem', authenticate, validateGiftCode, async (req, res) => {
     console.log(`   Plan: ${giftCode.subscriptionType}`);
     console.log(`   Duration: ${giftCode.duration}`);
 
-    // 🔥 CRITICAL: Get current subscription
+    // 🔥 CRITICAL: Get or create subscription
     let subscription = await Subscription.findOne({ userId: req.user.userId });
     
     if (!subscription) {
-      // Create new subscription if doesn't exist
+      console.log('⚠️ No subscription found - Creating new subscription');
       subscription = new Subscription({
         userId: req.user.userId,
         exam: null,
@@ -81,20 +81,59 @@ router.post('/redeem', authenticate, validateGiftCode, async (req, res) => {
     }
 
     const currentPlan = subscription.subscription;
-    const currentType = subscription.subscriptionType;
+    const newPlan = giftCode.subscriptionType;
     
-    console.log(`   Current: ${currentPlan} (${currentType})`);
+    console.log(`   Current plan: ${currentPlan}`);
+    console.log(`   New plan: ${newPlan}`);
 
-    // 🔥 USE UPGRADE METHOD - Handles all transitions correctly
+    // 🔥 COMPREHENSIVE UPGRADE LOGIC
+    const now = new Date();
     const endDate = calculateSubscriptionEndDate(giftCode.duration);
-    await subscription.upgradeTo(
-      giftCode.subscriptionType,
-      giftCode.duration,
-      'giftcode' // Mark as giftcode type
-    );
+    
+    // Store previous subscription info
+    subscription.previousSubscription = currentPlan;
+    subscription.previousSubscriptionType = subscription.subscriptionType;
+    
+    // Set new subscription
+    subscription.subscription = newPlan;
+    subscription.subscriptionType = 'giftcode';
+    subscription.subscriptionStatus = 'active';
+    subscription.subscriptionStartTime = now;
+    subscription.subscriptionEndTime = endDate;
+    
+    await subscription.save();
 
-    console.log(`   ✅ Upgraded to: ${giftCode.subscriptionType} (giftcode)`);
+    console.log(`   ✅ Subscription updated: ${currentPlan} → ${newPlan}`);
     console.log(`   ✅ Valid until: ${endDate.toISOString()}`);
+
+    // 🔥 CRITICAL: Update or create limits
+    let limits = await Limits.findOne({ userId: req.user.userId });
+    
+    if (!limits) {
+      console.log('⚠️ No limits found - Creating new limits');
+      limits = await Limits.create({
+        userId: req.user.userId,
+        subscription: newPlan,
+        questionCount: 0,
+        chapterTestCount: 0,
+        mockTestCount: 0,
+        ticketCount: 0,
+        limitResetTime: getNextResetTime()
+      });
+    } else {
+      limits.subscription = newPlan;
+      limits.questionCount = 0;
+      limits.chapterTestCount = 0;
+      limits.mockTestCount = 0;
+      limits.ticketCount = 0;
+      limits.questionCountLimitReached = false;
+      limits.chapterTestCountLimitReached = false;
+      limits.mockTestCountLimitReached = false;
+      limits.ticketCountLimitReached = false;
+      await limits.save();
+    }
+
+    console.log(`   ✅ Limits updated to ${newPlan.toUpperCase()} tier`);
 
     // Mark gift code as used
     giftCode.status = 'used';
@@ -108,11 +147,12 @@ router.post('/redeem', authenticate, validateGiftCode, async (req, res) => {
       success: true,
       message: 'Gift code redeemed successfully',
       subscription: {
-        plan: giftCode.subscriptionType,
+        plan: newPlan,
         type: 'giftcode',
         duration: giftCode.duration,
-        endDate,
-        upgradedFrom: currentPlan !== 'free' ? currentPlan : null
+        startDate: now,
+        endDate: endDate,
+        upgradedFrom: currentPlan !== newPlan ? currentPlan : null
       }
     });
 

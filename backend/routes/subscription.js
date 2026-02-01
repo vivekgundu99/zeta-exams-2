@@ -1,10 +1,10 @@
-// backend/routes/subscription.js - FIXED VERSION
+// backend/routes/subscription.js - COMPREHENSIVE FIX
 const express = require('express');
 const router = express.Router();
 const Subscription = require('../models/Subscription');
 const Limits = require('../models/Limits');
 const { authenticate } = require('../middleware/auth');
-const { getSubscriptionPrice } = require('../utils/helpers');
+const { getSubscriptionPrice, getNextResetTime } = require('../utils/helpers');
 
 // Get subscription plans
 router.get('/plans', (req, res) => {
@@ -14,7 +14,7 @@ router.get('/plans', (req, res) => {
       free: {
         price: 0,
         features: {
-          questionsPerDay: 50,
+          questionsPerDay: 20,
           chapterTests: 0,
           mockTests: 0,
           formulas: false,
@@ -49,31 +49,81 @@ router.get('/plans', (req, res) => {
   });
 });
 
-// FIX: Get subscription status with proper error handling
+// 🔥 CRITICAL FIX: Get subscription status with proper initialization
 router.get('/status', authenticate, async (req, res) => {
   try {
     console.log('📊 GET /api/subscription/status - User:', req.user.userId);
     
-    const subscription = await Subscription.findOne({ userId: req.user.userId });
+    let subscription = await Subscription.findOne({ userId: req.user.userId });
     
+    // 🔥 FIX 1: Create subscription if doesn't exist (for new users)
     if (!subscription) {
-      console.log('❌ Subscription not found for user:', req.user.userId);
-      return res.status(404).json({
-        success: false,
-        message: 'Subscription not found'
+      console.log('⚠️ No subscription found - Creating FREE subscription for new user');
+      
+      subscription = await Subscription.create({
+        userId: req.user.userId,
+        exam: null, // Will be set when user completes profile
+        subscription: 'free',
+        subscriptionType: 'original',
+        subscriptionStartTime: new Date(),
+        subscriptionEndTime: null,
+        subscriptionStatus: 'active'
       });
+      
+      // Also create limits
+      await Limits.create({
+        userId: req.user.userId,
+        subscription: 'free',
+        questionCount: 0,
+        chapterTestCount: 0,
+        mockTestCount: 0,
+        ticketCount: 0,
+        limitResetTime: getNextResetTime()
+      });
+      
+      console.log('✅ FREE subscription created for new user');
     }
 
-    // Check if subscription is expired
-    const isExpired = subscription.isExpired();
-    
-    // Auto-update if expired
-    if (isExpired && subscription.subscription !== 'free') {
-      subscription.subscriptionStatus = 'inactive';
-      subscription.subscription = 'free';
-      await subscription.save();
+    // 🔥 FIX 2: Check expiry and auto-downgrade BEFORE returning
+    if (subscription.subscription !== 'free') {
+      const isExpired = subscription.isExpired();
+      
+      if (isExpired && subscription.subscriptionStatus === 'active') {
+        console.log('⚠️ Subscription expired - Auto-downgrading to FREE');
+        
+        // Store previous subscription info
+        subscription.previousSubscription = subscription.subscription;
+        subscription.previousSubscriptionType = subscription.subscriptionType;
+        
+        // Downgrade to free
+        subscription.subscription = 'free';
+        subscription.subscriptionType = 'original';
+        subscription.subscriptionStatus = 'inactive';
+        subscription.subscriptionEndTime = null;
+        
+        await subscription.save();
+        
+        // Update limits
+        await Limits.updateOne(
+          { userId: req.user.userId },
+          { 
+            subscription: 'free',
+            questionCount: 0,
+            chapterTestCount: 0,
+            mockTestCount: 0,
+            ticketCount: 0,
+            questionCountLimitReached: false,
+            chapterTestCountLimitReached: false,
+            mockTestCountLimitReached: false,
+            ticketCountLimitReached: false
+          }
+        );
+        
+        console.log('✅ Auto-downgraded to FREE');
+      }
     }
 
+    // Return final status
     console.log('✅ Subscription status:', {
       subscription: subscription.subscription,
       status: subscription.subscriptionStatus,
@@ -90,7 +140,7 @@ router.get('/status', authenticate, async (req, res) => {
         subscriptionStartTime: subscription.subscriptionStartTime,
         subscriptionEndTime: subscription.subscriptionEndTime,
         subscriptionStatus: subscription.subscriptionStatus,
-        isExpired
+        isExpired: subscription.subscription !== 'free' && subscription.isExpired()
       }
     });
 

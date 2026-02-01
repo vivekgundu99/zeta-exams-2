@@ -1,4 +1,4 @@
-// backend/routes/payment.js - FIXED UPGRADE LOGIC
+// backend/routes/payment.js - COMPREHENSIVE UPGRADE FIX
 const express = require('express');
 const router = express.Router();
 const Razorpay = require('razorpay');
@@ -8,7 +8,7 @@ const Subscription = require('../models/Subscription');
 const Limits = require('../models/Limits');
 const { authenticate } = require('../middleware/auth');
 const { paymentLimiter } = require('../middleware/rateLimiter');
-const { calculateSubscriptionEndDate, getSubscriptionPrice } = require('../utils/helpers');
+const { calculateSubscriptionEndDate, getSubscriptionPrice, getNextResetTime } = require('../utils/helpers');
 const { sendSubscriptionConfirmation } = require('../utils/email');
 
 const razorpay = new Razorpay({
@@ -74,7 +74,7 @@ router.post('/create-order', authenticate, paymentLimiter, async (req, res) => {
   }
 });
 
-// 🔥 FIXED: Verify payment with proper upgrade logic
+// 🔥 COMPREHENSIVE FIX: Verify payment with ALL upgrade paths
 router.post('/verify', authenticate, async (req, res) => {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
@@ -105,7 +105,7 @@ router.post('/verify', authenticate, async (req, res) => {
     payment.razorpayPaymentId = razorpay_payment_id;
     payment.razorpaySignature = razorpay_signature;
     payment.status = 'success';
-    payment.subscriptionType = 'original'; // 🔥 ALWAYS original for payments
+    payment.subscriptionType = 'original';
     await payment.save();
 
     console.log('💳 Payment verified successfully');
@@ -113,14 +113,14 @@ router.post('/verify', authenticate, async (req, res) => {
     console.log(`   Plan: ${payment.subscriptionPlan}`);
     console.log(`   Duration: ${payment.subscriptionDuration}`);
 
-    // 🔥 CRITICAL: Get current subscription
+    // 🔥 CRITICAL: Get or create subscription
     let subscription = await Subscription.findOne({ userId: req.user.userId });
     
     if (!subscription) {
-      // Create new subscription if doesn't exist
+      console.log('⚠️ No subscription found - Creating new subscription');
       subscription = new Subscription({
         userId: req.user.userId,
-        exam: null, // Will be set if user has exam preference
+        exam: null,
         subscription: 'free',
         subscriptionType: 'original',
         subscriptionStatus: 'active'
@@ -128,20 +128,59 @@ router.post('/verify', authenticate, async (req, res) => {
     }
 
     const currentPlan = subscription.subscription;
-    const currentType = subscription.subscriptionType;
+    const newPlan = payment.subscriptionPlan;
     
-    console.log(`   Current: ${currentPlan} (${currentType})`);
+    console.log(`   Current plan: ${currentPlan}`);
+    console.log(`   New plan: ${newPlan}`);
 
-    // 🔥 USE UPGRADE METHOD - Handles all transitions correctly
+    // 🔥 COMPREHENSIVE UPGRADE LOGIC
+    const now = new Date();
     const endDate = calculateSubscriptionEndDate(payment.subscriptionDuration);
-    await subscription.upgradeTo(
-      payment.subscriptionPlan,
-      payment.subscriptionDuration,
-      'original' // ALWAYS original for paid subscriptions
-    );
-
-    console.log(`   ✅ Upgraded to: ${payment.subscriptionPlan} (original)`);
+    
+    // Store previous subscription info
+    subscription.previousSubscription = currentPlan;
+    subscription.previousSubscriptionType = subscription.subscriptionType;
+    
+    // Set new subscription
+    subscription.subscription = newPlan;
+    subscription.subscriptionType = 'original';
+    subscription.subscriptionStatus = 'active';
+    subscription.subscriptionStartTime = now;
+    subscription.subscriptionEndTime = endDate;
+    
+    await subscription.save();
+    
+    console.log(`   ✅ Subscription updated: ${currentPlan} → ${newPlan}`);
     console.log(`   ✅ Valid until: ${endDate.toISOString()}`);
+
+    // 🔥 CRITICAL: Update or create limits
+    let limits = await Limits.findOne({ userId: req.user.userId });
+    
+    if (!limits) {
+      console.log('⚠️ No limits found - Creating new limits');
+      limits = await Limits.create({
+        userId: req.user.userId,
+        subscription: newPlan,
+        questionCount: 0,
+        chapterTestCount: 0,
+        mockTestCount: 0,
+        ticketCount: 0,
+        limitResetTime: getNextResetTime()
+      });
+    } else {
+      limits.subscription = newPlan;
+      limits.questionCount = 0;
+      limits.chapterTestCount = 0;
+      limits.mockTestCount = 0;
+      limits.ticketCount = 0;
+      limits.questionCountLimitReached = false;
+      limits.chapterTestCountLimitReached = false;
+      limits.mockTestCountLimitReached = false;
+      limits.ticketCountLimitReached = false;
+      await limits.save();
+    }
+    
+    console.log(`   ✅ Limits updated to ${newPlan.toUpperCase()} tier`);
 
     // Send confirmation email
     const UserData = require('../models/UserData');
@@ -163,11 +202,12 @@ router.post('/verify', authenticate, async (req, res) => {
       success: true,
       message: 'Payment verified successfully',
       subscription: {
-        plan: payment.subscriptionPlan,
+        plan: newPlan,
         type: 'original',
         duration: payment.subscriptionDuration,
-        endDate,
-        upgradedFrom: currentPlan !== 'free' ? currentPlan : null
+        startDate: now,
+        endDate: endDate,
+        upgradedFrom: currentPlan !== newPlan ? currentPlan : null
       }
     });
 

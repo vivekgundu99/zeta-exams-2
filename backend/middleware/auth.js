@@ -1,20 +1,28 @@
-// backend/middleware/auth.js - UPDATED WITH ADMIN EXCEPTION
+// backend/middleware/auth.js - PERFORMANCE OPTIMIZED
 const { verifyToken } = require('../utils/jwt');
 const User = require('../models/User');
+const cacheService = require('../services/cacheService');
 
-// 🔥 UPDATED: Authenticate with admin exception for multi-device login
+// 🔥 In-memory token cache (60 seconds)
+const tokenCache = new Map();
+const TOKEN_CACHE_TTL = 60000; // 60 seconds
+
+// 🔥 PERFORMANCE: Clean expired tokens every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [token, data] of tokenCache.entries()) {
+    if (now - data.timestamp > TOKEN_CACHE_TTL) {
+      tokenCache.delete(token);
+    }
+  }
+}, 300000);
+
+// 🔥 OPTIMIZED: Authenticate with token caching
 const authenticate = async (req, res, next) => {
   try {
-    console.log('🔐 Authentication Check:', {
-      path: req.path,
-      method: req.method,
-      hasAuthHeader: !!req.headers.authorization
-    });
-
     const authHeader = req.headers.authorization;
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.log('❌ No auth header');
       return res.status(401).json({
         success: false,
         message: 'No token provided. Please login.',
@@ -25,7 +33,6 @@ const authenticate = async (req, res, next) => {
     const token = authHeader.replace('Bearer ', '').trim().replace(/^["']|["']$/g, '');
     
     if (!token || token === 'null' || token === 'undefined') {
-      console.log('❌ Invalid token');
       return res.status(401).json({
         success: false,
         message: 'Invalid token. Please login.',
@@ -33,17 +40,19 @@ const authenticate = async (req, res, next) => {
       });
     }
     
+    // 🔥 PERFORMANCE: Check in-memory token cache first
+    const cachedToken = tokenCache.get(token);
+    if (cachedToken && Date.now() - cachedToken.timestamp < TOKEN_CACHE_TTL) {
+      req.user = cachedToken.user;
+      return next();
+    }
+    
     // Verify JWT
     let decoded;
     try {
       decoded = verifyToken(token);
-      console.log('✅ Token verified:', {
-        userId: decoded.userId,
-        isAdmin: decoded.isAdmin,
-        sessionVersion: decoded.sessionVersion
-      });
     } catch (error) {
-      console.error('❌ Token verification failed:', error.message);
+      tokenCache.delete(token); // Remove invalid token from cache
       return res.status(401).json({
         success: false,
         message: 'Token expired or invalid. Please login again.',
@@ -53,34 +62,51 @@ const authenticate = async (req, res, next) => {
     
     // 🔥 ADMIN EXCEPTION - Skip session version check for admin
     if (decoded.isAdmin) {
-      console.log('👑 Admin authenticated - Multi-device login allowed');
-      req.user = {
+      const userData = {
         userId: decoded.userId,
         email: decoded.email,
         isAdmin: true
       };
+      
+      // 🔥 Cache admin token
+      tokenCache.set(token, {
+        user: userData,
+        timestamp: Date.now()
+      });
+      
+      req.user = userData;
       return next();
     }
     
-    // 🔥 REGULAR USER: Check user and validate sessionVersion
-    console.log('👤 Validating user and session version...');
-    const user = await User.findOne({ userId: decoded.userId });
+    // 🔥 PERFORMANCE: Try Redis cache for user session validation
+    const cacheKey = `session:${decoded.userId}`;
+    let userSessionVersion = await cacheService.redis?.get(cacheKey);
     
-    if (!user) {
-      console.log('❌ User not found');
-      return res.status(401).json({
-        success: false,
-        message: 'User not found. Please login again.',
-        code: 'USER_NOT_FOUND'
-      });
+    if (userSessionVersion === null) {
+      // Cache miss - fetch from DB
+      const user = await User.findOne({ userId: decoded.userId })
+        .select('userId email sessionVersion')
+        .lean(); // 🔥 PERFORMANCE: Use lean() for faster queries
+      
+      if (!user) {
+        return res.status(401).json({
+          success: false,
+          message: 'User not found. Please login again.',
+          code: 'USER_NOT_FOUND'
+        });
+      }
+      
+      userSessionVersion = user.sessionVersion;
+      
+      // 🔥 Cache session version for 5 minutes
+      await cacheService.redis?.setex(cacheKey, 300, userSessionVersion.toString());
+    } else {
+      userSessionVersion = parseInt(userSessionVersion);
     }
     
-    // 🔥 SESSION VERSION VALIDATION - Only for regular users
-    if (decoded.sessionVersion !== user.sessionVersion) {
-      console.log('❌ Session version mismatch:', {
-        tokenVersion: decoded.sessionVersion,
-        userVersion: user.sessionVersion
-      });
+    // 🔥 SESSION VERSION VALIDATION
+    if (decoded.sessionVersion !== userSessionVersion) {
+      tokenCache.delete(token); // Remove invalid token from cache
       
       return res.status(401).json({
         success: false,
@@ -89,15 +115,19 @@ const authenticate = async (req, res, next) => {
       });
     }
     
-    console.log('✅ Session version validated');
-    
-    // Attach user to request
-    req.user = {
+    const userData = {
       userId: decoded.userId,
       email: decoded.email,
       isAdmin: false
     };
     
+    // 🔥 Cache valid token
+    tokenCache.set(token, {
+      user: userData,
+      timestamp: Date.now()
+    });
+    
+    req.user = userData;
     next();
   } catch (error) {
     console.error('💥 Authentication error:', error);
@@ -120,7 +150,7 @@ const isAdmin = (req, res, next) => {
   next();
 };
 
-// Check subscription access
+// 🔥 OPTIMIZED: Check subscription with Redis caching
 const checkSubscription = (requiredPlan) => {
   return async (req, res, next) => {
     try {
@@ -128,8 +158,23 @@ const checkSubscription = (requiredPlan) => {
         return next();
       }
 
-      const Subscription = require('../models/Subscription');
-      const subscription = await Subscription.findOne({ userId: req.user.userId });
+      // 🔥 PERFORMANCE: Check Redis cache first
+      const cachedSub = await cacheService.getSubscription(req.user.userId);
+      
+      let subscription;
+      if (cachedSub) {
+        subscription = cachedSub;
+      } else {
+        const Subscription = require('../models/Subscription');
+        subscription = await Subscription.findOne({ userId: req.user.userId })
+          .select('subscription subscriptionStatus subscriptionEndTime')
+          .lean(); // 🔥 PERFORMANCE: Use lean()
+        
+        if (subscription) {
+          // Cache for 10 minutes
+          await cacheService.setSubscription(req.user.userId, subscription, 600);
+        }
+      }
       
       if (!subscription) {
         return res.status(403).json({
@@ -138,11 +183,8 @@ const checkSubscription = (requiredPlan) => {
         });
       }
       
-      if (subscription.isExpired()) {
-        subscription.subscriptionStatus = 'inactive';
-        subscription.subscription = 'free';
-        await subscription.save();
-        
+      // Check if expired
+      if (subscription.subscriptionEndTime && new Date() > new Date(subscription.subscriptionEndTime)) {
         return res.status(403).json({
           success: false,
           message: 'Subscription expired. Please renew.'

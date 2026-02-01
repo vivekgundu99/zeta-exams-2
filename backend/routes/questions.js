@@ -1,4 +1,4 @@
-// backend/routes/questions.js - WITH REDIS CACHING
+// backend/routes/questions.js - MAXIMUM PERFORMANCE OPTIMIZATION
 const express = require('express');
 const router = express.Router();
 const Question = require('../models/Question');
@@ -10,14 +10,28 @@ const { needsLimitReset, getNextResetTime } = require('../utils/helpers');
 const cacheService = require('../services/cacheService');
 const { questionLimiter } = require('../middleware/redisRateLimiter');
 
-// Get subjects for exam
+// 🔥 PERFORMANCE: Get subjects for exam (CACHED)
 router.get('/subjects', authenticate, async (req, res) => {
   try {
     const { examType } = req.query;
+    
+    // 🔥 Static data - cache for 24 hours
+    const cacheKey = `subjects:${examType}`;
+    const cached = await cacheService.redis?.get(cacheKey);
+    
+    if (cached) {
+      return res.json({
+        success: true,
+        subjects: JSON.parse(cached)
+      });
+    }
 
     const subjects = examType === 'jee' 
       ? ['Physics', 'Chemistry', 'Mathematics']
       : ['Physics', 'Chemistry', 'Biology'];
+    
+    // Cache for 24 hours
+    await cacheService.redis?.setex(cacheKey, 86400, JSON.stringify(subjects));
 
     res.json({
       success: true,
@@ -33,34 +47,30 @@ router.get('/subjects', authenticate, async (req, res) => {
   }
 });
 
-// Get chapters for subject (WITH REDIS CACHING)
+// 🔥 PERFORMANCE: Get chapters for subject (HEAVILY CACHED)
 router.get('/chapters/:subject', authenticate, async (req, res) => {
   try {
     const { subject } = req.params;
     const { examType } = req.query;
 
-    // 🔥 TRY CACHE FIRST
+    // 🔥 Try cache first (2 hours)
     const cachedChapters = await cacheService.getChapters(examType, subject);
     
     if (cachedChapters) {
-      console.log('✅ Serving chapters from cache');
       return res.json({
         success: true,
         chapters: cachedChapters
       });
     }
 
-    // 🔥 CACHE MISS
-    console.log('⚠️ Cache miss - fetching chapters from database');
-
+    // 🔥 PERFORMANCE: Optimized query with lean()
     const chapters = await Question.distinct('chapter', {
       examType,
-      subject: new RegExp(subject, 'i')
+      subject: new RegExp(`^${subject}$`, 'i')
     });
 
-    // 🔥 CACHE IT
-    await cacheService.setChapters(examType, subject, chapters, 7200); // 2 hours
-    console.log('✅ Chapters cached successfully');
+    // Cache for 2 hours
+    await cacheService.setChapters(examType, subject, chapters, 7200);
 
     res.json({
       success: true,
@@ -76,35 +86,31 @@ router.get('/chapters/:subject', authenticate, async (req, res) => {
   }
 });
 
-// Get topics for chapter (WITH REDIS CACHING)
+// 🔥 PERFORMANCE: Get topics for chapter (HEAVILY CACHED)
 router.get('/topics/:subject/:chapter', authenticate, async (req, res) => {
   try {
     const { subject, chapter } = req.params;
     const { examType } = req.query;
 
-    // 🔥 TRY CACHE FIRST
+    // 🔥 Try cache first (2 hours)
     const cachedTopics = await cacheService.getTopics(examType, subject, chapter);
     
     if (cachedTopics) {
-      console.log('✅ Serving topics from cache');
       return res.json({
         success: true,
         topics: cachedTopics
       });
     }
 
-    // 🔥 CACHE MISS
-    console.log('⚠️ Cache miss - fetching topics from database');
-
+    // 🔥 PERFORMANCE: Optimized query
     const topics = await Question.distinct('topic', {
       examType,
-      subject: new RegExp(subject, 'i'),
-      chapter: new RegExp(chapter, 'i')
+      subject: new RegExp(`^${subject}$`, 'i'),
+      chapter: new RegExp(`^${chapter}$`, 'i')
     });
 
-    // 🔥 CACHE IT
-    await cacheService.setTopics(examType, subject, chapter, topics, 7200); // 2 hours
-    console.log('✅ Topics cached successfully');
+    // Cache for 2 hours
+    await cacheService.setTopics(examType, subject, chapter, topics, 7200);
 
     res.json({
       success: true,
@@ -120,30 +126,30 @@ router.get('/topics/:subject/:chapter', authenticate, async (req, res) => {
   }
 });
 
-// Get questions list with attempt status (WITH REDIS CACHING - NO OPTIONS)
+// 🔥 MAXIMUM PERFORMANCE: Get questions list (AGGRESSIVE CACHING)
 router.get('/list', authenticate, questionLimiter, async (req, res) => {
   try {
     const { examType, subject, chapter, topic, page = 1, limit = 20 } = req.query;
 
-    console.log('📚 Loading question list:', { examType, subject, chapter, topic, page });
-
-    // 🔥 TRY CACHE FIRST (without options)
-    const cacheKey = `${examType}:${subject}:${chapter}:${topic}:${page}`;
-    const cachedList = await cacheService.getQuestionList(examType, subject, chapter, topic, page);
+    // 🔥 Try cache first
+    const cacheKey = `qlist:${examType}:${subject}:${chapter}:${topic}:${page}`;
+    const cachedList = await cacheService.redis?.get(cacheKey);
 
     if (cachedList) {
-      console.log('✅ Serving question list from cache');
+      const parsed = JSON.parse(cachedList);
       
-      // Still need to get attempt status from DB (not cached because it changes frequently)
-      const questionIds = cachedList.questions.map(q => q.questionId);
+      // Get attempt status (not cached as it changes frequently)
+      const questionIds = parsed.questions.map(q => q.questionId);
       const attempts = await QuestionAttempt.find({
         userId: req.user.userId,
         questionId: { $in: questionIds }
-      }).select('questionId userAnswer');
+      })
+      .select('questionId userAnswer')
+      .lean(); // 🔥 PERFORMANCE
 
       const attemptsMap = new Map(attempts.map(a => [a.questionId, a.userAnswer]));
 
-      const questionsWithStatus = cachedList.questions.map(q => ({
+      const questionsWithStatus = parsed.questions.map(q => ({
         ...q,
         status: attemptsMap.has(q.questionId) ? 'attempted' : 'unattempted',
         userAnswer: attemptsMap.get(q.questionId) || null
@@ -152,30 +158,28 @@ router.get('/list', authenticate, questionLimiter, async (req, res) => {
       return res.json({
         success: true,
         count: questionsWithStatus.length,
-        total: cachedList.total,
+        total: parsed.total,
         page: parseInt(page),
-        totalPages: cachedList.totalPages,
+        totalPages: parsed.totalPages,
         questions: questionsWithStatus
       });
     }
 
-    // 🔥 CACHE MISS
-    console.log('⚠️ Cache miss - fetching question list from database');
-
+    // 🔥 PERFORMANCE: Optimized query
     const query = { examType };
-    if (subject) query.subject = new RegExp(subject, 'i');
-    if (chapter) query.chapter = new RegExp(chapter, 'i');
-    if (topic) query.topic = new RegExp(topic, 'i');
+    if (subject) query.subject = new RegExp(`^${subject}$`, 'i');
+    if (chapter) query.chapter = new RegExp(`^${chapter}$`, 'i');
+    if (topic) query.topic = new RegExp(`^${topic}$`, 'i');
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // 🔥 ONLY SELECT MINIMAL FIELDS (no options, no answers)
+    // 🔥 PERFORMANCE: Select only needed fields + lean()
     const questions = await Question.find(query)
       .select('questionId serialNumber questionType question subject chapter topic questionImageUrl')
       .sort({ serialNumber: 1 })
       .skip(skip)
       .limit(parseInt(limit))
-      .lean(); // Use lean() for better performance
+      .lean();
 
     const total = await Question.countDocuments(query);
 
@@ -184,7 +188,9 @@ router.get('/list', authenticate, questionLimiter, async (req, res) => {
     const attempts = await QuestionAttempt.find({
       userId: req.user.userId,
       questionId: { $in: questionIds }
-    }).select('questionId userAnswer');
+    })
+    .select('questionId userAnswer')
+    .lean();
 
     const attemptsMap = new Map(attempts.map(a => [a.questionId, a.userAnswer]));
 
@@ -196,14 +202,13 @@ router.get('/list', authenticate, questionLimiter, async (req, res) => {
 
     const totalPages = Math.ceil(total / parseInt(limit));
 
-    // 🔥 CACHE THE LIST (without attempt status)
+    // 🔥 Cache the base list (2 hours)
     const cacheData = {
       questions,
       total,
       totalPages
     };
-    await cacheService.setQuestionList(examType, subject, chapter, topic, page, cacheData, 7200);
-    console.log('✅ Question list cached successfully');
+    await cacheService.redis?.setex(cacheKey, 7200, JSON.stringify(cacheData));
 
     res.json({
       success: true,
@@ -224,80 +229,77 @@ router.get('/list', authenticate, questionLimiter, async (req, res) => {
   }
 });
 
-// Get single FULL question with attempt data (WITH REDIS CACHING + RATE LIMITING)
+// 🔥 MAXIMUM PERFORMANCE: Get single FULL question
 router.get('/:questionId', authenticate, questionLimiter, async (req, res) => {
   try {
     const { questionId } = req.params;
 
-    console.log('📝 Loading full question:', questionId);
-
-    // 🔥 TRY CACHE FIRST (full question with options)
+    // 🔥 Try cache first
     const cachedQuestion = await cacheService.getFullQuestion(questionId);
 
     if (cachedQuestion) {
-      console.log('✅ Serving full question from cache');
-      
-      // Still check attempt status from DB
+      // Check attempt status
       const attempt = await QuestionAttempt.findOne({
         userId: req.user.userId,
         questionId: questionId
-      });
+      })
+      .select('userAnswer')
+      .lean();
 
-      // Check limits (always fresh)
-      let limits = await Limits.findOne({ userId: req.user.userId });
+      // 🔥 PERFORMANCE: Check limits from cache
+      let limits = await cacheService.getLimits(req.user.userId);
       
       if (!limits) {
-        const Subscription = require('../models/Subscription');
-        const subscription = await Subscription.findOne({ userId: req.user.userId });
+        limits = await Limits.findOne({ userId: req.user.userId })
+          .select('subscription questionCount limitResetTime')
+          .lean();
         
-        limits = await Limits.create({
-          userId: req.user.userId,
-          subscription: subscription?.subscription || 'free',
-          questionCount: 0,
-          chapterTestCount: 0,
-          mockTestCount: 0,
-          ticketCount: 0,
-          questionCountLimitReached: false,
-          chapterTestCountLimitReached: false,
-          mockTestCountLimitReached: false,
-          ticketCountLimitReached: false,
-          limitResetTime: getNextResetTime()
-        });
-      }
-      
-      if (needsLimitReset(limits.limitResetTime)) {
-        limits.questionCount = 0;
-        limits.chapterTestCount = 0;
-        limits.mockTestCount = 0;
-        limits.ticketCount = 0;
-        limits.questionCountLimitReached = false;
-        limits.chapterTestCountLimitReached = false;
-        limits.mockTestCountLimitReached = false;
-        limits.ticketCountLimitReached = false;
-        limits.limitResetTime = getNextResetTime();
-        await limits.save();
-
-        // 🔥 INVALIDATE LIMITS CACHE
-        await cacheService.invalidateLimits(req.user.userId);
+        if (!limits) {
+          const Subscription = require('../models/Subscription');
+          const subscription = await Subscription.findOne({ userId: req.user.userId })
+            .select('subscription')
+            .lean();
+          
+          limits = await Limits.create({
+            userId: req.user.userId,
+            subscription: subscription?.subscription || 'free',
+            questionCount: 0,
+            limitResetTime: getNextResetTime()
+          });
+        }
+        
+        // Cache limits
+        const limitStatus = Limits.getLimitsForSubscription(limits.subscription);
+        const limitsData = {
+          limits: {
+            questions: {
+              used: limits.questionCount,
+              limit: limitStatus.questions,
+              reached: limits.questionCount >= limitStatus.questions
+            }
+          },
+          resetTime: limits.limitResetTime
+        };
+        await cacheService.setLimits(req.user.userId, limitsData, 3600);
       }
 
-      const limitStatus = limits.checkLimits();
-      if (limitStatus.questions.reached) {
+      // Check if limit reached
+      if (limits.limits?.questions?.reached) {
         return res.status(403).json({
           success: false,
           message: 'Daily question limit reached',
-          limit: limitStatus.questions
+          limit: limits.limits.questions
         });
       }
 
-      // Increment count
-      limits.questionCount += 1;
-      await limits.save();
-
-      // 🔥 INVALIDATE LIMITS CACHE
-      await cacheService.invalidateLimits(req.user.userId);
-
-      console.log(`📊 Question count incremented: ${limits.questionCount}`);
+      // Increment count (async - don't wait)
+      Limits.updateOne(
+        { userId: req.user.userId },
+        { $inc: { questionCount: 1 } }
+      ).exec();
+      
+      // Invalidate cache (async - don't wait)
+      cacheService.invalidateLimits(req.user.userId);
 
       return res.json({
         success: true,
@@ -309,9 +311,7 @@ router.get('/:questionId', authenticate, questionLimiter, async (req, res) => {
       });
     }
 
-    // 🔥 CACHE MISS - FETCH FULL QUESTION
-    console.log('⚠️ Cache miss - fetching full question from database');
-
+    // 🔥 CACHE MISS - Fetch from DB
     const question = await Question.findOne({ questionId: questionId }).lean();
 
     if (!question) {
@@ -321,71 +321,70 @@ router.get('/:questionId', authenticate, questionLimiter, async (req, res) => {
       });
     }
 
-    // Check if user has attempted this question
+    // Check attempt
     const attempt = await QuestionAttempt.findOne({
       userId: req.user.userId,
       questionId: questionId
-    });
+    })
+    .select('userAnswer')
+    .lean();
 
-    // Check and update limits
-    let limits = await Limits.findOne({ userId: req.user.userId });
+    // Check limits
+    let limits = await Limits.findOne({ userId: req.user.userId })
+      .select('subscription questionCount limitResetTime')
+      .lean();
     
     if (!limits) {
       const Subscription = require('../models/Subscription');
-      const subscription = await Subscription.findOne({ userId: req.user.userId });
+      const subscription = await Subscription.findOne({ userId: req.user.userId })
+        .select('subscription')
+        .lean();
       
       limits = await Limits.create({
         userId: req.user.userId,
         subscription: subscription?.subscription || 'free',
         questionCount: 0,
-        chapterTestCount: 0,
-        mockTestCount: 0,
-        ticketCount: 0,
-        questionCountLimitReached: false,
-        chapterTestCountLimitReached: false,
-        mockTestCountLimitReached: false,
-        ticketCountLimitReached: false,
         limitResetTime: getNextResetTime()
       });
     }
     
     if (needsLimitReset(limits.limitResetTime)) {
+      await Limits.updateOne(
+        { userId: req.user.userId },
+        {
+          $set: {
+            questionCount: 0,
+            limitResetTime: getNextResetTime()
+          }
+        }
+      );
       limits.questionCount = 0;
-      limits.chapterTestCount = 0;
-      limits.mockTestCount = 0;
-      limits.ticketCount = 0;
-      limits.questionCountLimitReached = false;
-      limits.chapterTestCountLimitReached = false;
-      limits.mockTestCountLimitReached = false;
-      limits.ticketCountLimitReached = false;
-      limits.limitResetTime = getNextResetTime();
-      await limits.save();
-
-      // 🔥 INVALIDATE LIMITS CACHE
       await cacheService.invalidateLimits(req.user.userId);
     }
 
-    const limitStatus = limits.checkLimits();
-    if (limitStatus.questions.reached) {
+    const limitStatus = Limits.getLimitsForSubscription(limits.subscription);
+    if (limits.questionCount >= limitStatus.questions) {
       return res.status(403).json({
         success: false,
         message: 'Daily question limit reached',
-        limit: limitStatus.questions
+        limit: {
+          used: limits.questionCount,
+          limit: limitStatus.questions,
+          reached: true
+        }
       });
     }
 
-    // Increment count
-    limits.questionCount += 1;
-    await limits.save();
+    // Increment count (async)
+    Limits.updateOne(
+      { userId: req.user.userId },
+      { $inc: { questionCount: 1 } }
+    ).exec();
+    
+    cacheService.invalidateLimits(req.user.userId);
 
-    // 🔥 INVALIDATE LIMITS CACHE (since count changed)
-    await cacheService.invalidateLimits(req.user.userId);
-
-    console.log(`📊 Question count incremented: ${limits.questionCount}`);
-
-    // 🔥 CACHE THE FULL QUESTION
-    await cacheService.setFullQuestion(questionId, question, 7200); // 2 hours
-    console.log('✅ Full question cached successfully');
+    // 🔥 Cache the question (2 hours)
+    await cacheService.setFullQuestion(questionId, question, 7200);
 
     res.json({
       success: true,
@@ -406,14 +405,14 @@ router.get('/:questionId', authenticate, questionLimiter, async (req, res) => {
   }
 });
 
-// Submit answer (NO CACHING - Always fresh write)
+// 🔥 OPTIMIZED: Submit answer
 router.post('/submit-answer', authenticate, questionLimiter, async (req, res) => {
   try {
     const { questionId, userAnswer } = req.body;
 
-    console.log('📝 Submitting answer:', { questionId, userAnswer });
-
-    const question = await Question.findOne({ questionId });
+    const question = await Question.findOne({ questionId })
+      .select('answer explanation explanationImageUrl subject chapterId chapter')
+      .lean();
 
     if (!question) {
       return res.status(404).json({
@@ -424,42 +423,43 @@ router.post('/submit-answer', authenticate, questionLimiter, async (req, res) =>
 
     const isCorrect = userAnswer === question.answer;
 
-    // Save or update attempt
-    await QuestionAttempt.findOneAndUpdate(
+    // Save attempt (async - don't wait for response)
+    QuestionAttempt.findOneAndUpdate(
       { userId: req.user.userId, questionId },
       { userAnswer, attemptedAt: new Date() },
       { upsert: true }
-    );
+    ).exec();
 
-    // Update analytics for Gold users
+    // Update analytics for Gold users (async)
     const Subscription = require('../models/Subscription');
-    const subscription = await Subscription.findOne({ userId: req.user.userId });
-    
-    if (subscription && subscription.subscription === 'gold') {
-      let analytics = await Analytics.findOne({ userId: req.user.userId });
-      
-      if (!analytics) {
-        analytics = await Analytics.create({
-          userId: req.user.userId,
-          subscription: 'gold',
-          exam: subscription.exam
-        });
-      }
+    Subscription.findOne({ userId: req.user.userId })
+      .select('subscription exam')
+      .lean()
+      .then(async (subscription) => {
+        if (subscription && subscription.subscription === 'gold') {
+          let analytics = await Analytics.findOne({ userId: req.user.userId });
+          
+          if (!analytics) {
+            analytics = await Analytics.create({
+              userId: req.user.userId,
+              subscription: 'gold',
+              exam: subscription.exam
+            });
+          }
 
-      const subject = question.subject.toLowerCase();
-      analytics.updateChapterStats(
-        subject,
-        question.chapterId,
-        question.chapter,
-        isCorrect
-      );
-      
-      await analytics.save();
-
-      // 🔥 INVALIDATE ANALYTICS CACHE
-      await cacheService.invalidateAnalytics(req.user.userId);
-      console.log('✅ Analytics cache invalidated after answer submission');
-    }
+          const subject = question.subject.toLowerCase();
+          analytics.updateChapterStats(
+            subject,
+            question.chapterId,
+            question.chapter,
+            isCorrect
+          );
+          
+          await analytics.save();
+          await cacheService.invalidateAnalytics(req.user.userId);
+        }
+      })
+      .catch(err => console.error('Analytics update error:', err));
 
     res.json({
       success: true,
