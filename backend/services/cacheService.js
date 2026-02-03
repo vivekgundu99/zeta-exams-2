@@ -1,69 +1,84 @@
-// backend/services/cacheService.js - SERVERLESS-SAFE WITH GRACEFUL DEGRADATION
+// backend/services/cacheService.js - ASYNC-SAFE FOR SERVERLESS
 const { getRedisClient, isRedisAvailable } = require('../config/redis');
 
 class CacheService {
   constructor() {
     this.redis = null;
-    this.defaultTTL = 3600; // 1 hour
+    this.defaultTTL = 3600;
+    this.initialized = false;
   }
 
-  // Initialize Redis client
-  init() {
+  // 🔥 ASYNC INIT - Don't connect immediately
+  async init() {
     try {
-      this.redis = getRedisClient();
-      console.log('🔧 CacheService initialized');
+      console.log('🔧 CacheService: Lazy initialization mode');
+      this.initialized = true;
     } catch (error) {
       console.log('⚠️ CacheService init warning:', error.message);
-      this.redis = null;
     }
   }
 
-  // Check if cache is available
-  isAvailable() {
-    try {
-      return isRedisAvailable();
-    } catch (error) {
-      return false;
+  // 🔥 Get client on-demand
+  async getClient() {
+    if (this.redis && isRedisAvailable()) {
+      return this.redis;
     }
-  }
-
-  // 🔥 SAFE: Get with automatic fallback
-  async safeGet(key) {
-    if (!this.isAvailable()) return null;
+    
     try {
-      const result = await Promise.race([
-        this.redis.get(key),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 500))
-      ]);
-      return result;
+      this.redis = await getRedisClient();
+      return this.redis;
     } catch (error) {
-      // Silent fail - return null
       return null;
     }
   }
 
-  // 🔥 SAFE: Set with automatic fallback
+  // Check availability
+  async isAvailable() {
+    const client = await this.getClient();
+    return client !== null && isRedisAvailable();
+  }
+
+  // 🔥 SAFE GET with async client fetch
+  async safeGet(key) {
+    try {
+      const client = await this.getClient();
+      if (!client) return null;
+      
+      const result = await Promise.race([
+        client.get(key),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
+      ]);
+      return result;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  // 🔥 SAFE SET with async client fetch
   async safeSet(key, value, ttl) {
-    if (!this.isAvailable()) return false;
     try {
+      const client = await this.getClient();
+      if (!client) return false;
+      
       await Promise.race([
-        this.redis.setex(key, ttl, value),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 500))
+        client.setex(key, ttl, value),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
       ]);
       return true;
     } catch (error) {
-      // Silent fail
       return false;
     }
   }
 
-  // 🔥 SAFE: Delete with automatic fallback
+  // 🔥 SAFE DEL with async client fetch
   async safeDel(key) {
-    if (!this.isAvailable()) return false;
     try {
+      const client = await this.getClient();
+      if (!client) return false;
+      
       await Promise.race([
-        this.redis.del(key),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 500))
+        client.del(key),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
       ]);
       return true;
     } catch (error) {
@@ -71,16 +86,10 @@ class CacheService {
     }
   }
 
-  // ==========================================
-  // LIMITS CACHING (Most Critical)
-  // ==========================================
-  
+  // LIMITS CACHING
   async getLimits(userId) {
     const cached = await this.safeGet(`limits:${userId}`);
-    if (cached) {
-      return JSON.parse(cached);
-    }
-    return null;
+    return cached ? JSON.parse(cached) : null;
   }
 
   async setLimits(userId, limits, ttl = 3600) {
@@ -91,16 +100,10 @@ class CacheService {
     return await this.safeDel(`limits:${userId}`);
   }
 
-  // ==========================================
   // USER PROFILE CACHING
-  // ==========================================
-  
   async getUserProfile(userId) {
     const cached = await this.safeGet(`profile:${userId}`);
-    if (cached) {
-      return JSON.parse(cached);
-    }
-    return null;
+    return cached ? JSON.parse(cached) : null;
   }
 
   async setUserProfile(userId, profile, ttl = 1800) {
@@ -111,16 +114,10 @@ class CacheService {
     return await this.safeDel(`profile:${userId}`);
   }
 
-  // ==========================================
   // SUBSCRIPTION CACHING
-  // ==========================================
-  
   async getSubscription(userId) {
     const cached = await this.safeGet(`subscription:${userId}`);
-    if (cached) {
-      return JSON.parse(cached);
-    }
-    return null;
+    return cached ? JSON.parse(cached) : null;
   }
 
   async setSubscription(userId, subscription, ttl = 3600) {
@@ -131,50 +128,20 @@ class CacheService {
     return await this.safeDel(`subscription:${userId}`);
   }
 
-  // ==========================================
-  // QUESTION LIST CACHING
-  // ==========================================
-  
-  async getQuestionList(examType, subject, chapter, topic, page) {
-    const key = `questions:list:${examType}:${subject}:${chapter}:${topic}:${page}`;
-    const cached = await this.safeGet(key);
-    if (cached) {
-      return JSON.parse(cached);
-    }
-    return null;
-  }
-
-  async setQuestionList(examType, subject, chapter, topic, page, questions, ttl = 7200) {
-    const key = `questions:list:${examType}:${subject}:${chapter}:${topic}:${page}`;
-    return await this.safeSet(key, JSON.stringify(questions), ttl);
-  }
-
-  // ==========================================
-  // FULL QUESTION CACHING
-  // ==========================================
-  
+  // QUESTION CACHING
   async getFullQuestion(questionId) {
     const cached = await this.safeGet(`question:full:${questionId}`);
-    if (cached) {
-      return JSON.parse(cached);
-    }
-    return null;
+    return cached ? JSON.parse(cached) : null;
   }
 
   async setFullQuestion(questionId, question, ttl = 7200) {
     return await this.safeSet(`question:full:${questionId}`, JSON.stringify(question), ttl);
   }
 
-  // ==========================================
   // ANALYTICS CACHING
-  // ==========================================
-  
   async getAnalytics(userId) {
     const cached = await this.safeGet(`analytics:${userId}`);
-    if (cached) {
-      return JSON.parse(cached);
-    }
-    return null;
+    return cached ? JSON.parse(cached) : null;
   }
 
   async setAnalytics(userId, analytics, ttl = 300) {
@@ -185,16 +152,10 @@ class CacheService {
     return await this.safeDel(`analytics:${userId}`);
   }
 
-  // ==========================================
-  // CHAPTER/TOPIC LIST CACHING
-  // ==========================================
-  
+  // CHAPTER/TOPIC CACHING
   async getChapters(examType, subject) {
     const cached = await this.safeGet(`chapters:${examType}:${subject}`);
-    if (cached) {
-      return JSON.parse(cached);
-    }
-    return null;
+    return cached ? JSON.parse(cached) : null;
   }
 
   async setChapters(examType, subject, chapters, ttl = 7200) {
@@ -203,34 +164,29 @@ class CacheService {
 
   async getTopics(examType, subject, chapter) {
     const cached = await this.safeGet(`topics:${examType}:${subject}:${chapter}`);
-    if (cached) {
-      return JSON.parse(cached);
-    }
-    return null;
+    return cached ? JSON.parse(cached) : null;
   }
 
   async setTopics(examType, subject, chapter, topics, ttl = 7200) {
     return await this.safeSet(`topics:${examType}:${subject}:${chapter}`, JSON.stringify(topics), ttl);
   }
 
-  // ==========================================
   // RATE LIMITING
-  // ==========================================
-  
   async checkRateLimit(key, limit, window) {
-    if (!this.isAvailable()) return { allowed: true };
-    
     try {
+      const client = await this.getClient();
+      if (!client) return { allowed: true }; // Fail open
+      
       const current = await Promise.race([
-        this.redis.incr(key),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 500))
+        client.incr(key),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
       ]);
       
       if (current === 1) {
-        await this.redis.expire(key, window);
+        await client.expire(key, window);
       }
       
-      const ttl = await this.redis.ttl(key);
+      const ttl = await client.ttl(key);
       
       return {
         allowed: current <= limit,
@@ -239,19 +195,16 @@ class CacheService {
         resetIn: ttl
       };
     } catch (error) {
-      // Fail open - allow request if Redis is down
-      return { allowed: true };
+      return { allowed: true }; // Fail open
     }
   }
 
-  // ==========================================
   // BULK INVALIDATION
-  // ==========================================
-  
   async invalidateUserCache(userId) {
-    if (!this.isAvailable()) return false;
-    
     try {
+      const client = await this.getClient();
+      if (!client) return false;
+      
       const keys = [
         `limits:${userId}`,
         `profile:${userId}`,
@@ -260,8 +213,8 @@ class CacheService {
       ];
       
       await Promise.race([
-        this.redis.del(...keys),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 1000))
+        client.del(...keys),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
       ]);
       return true;
     } catch (error) {
@@ -269,52 +222,51 @@ class CacheService {
     }
   }
 
-  // ==========================================
-  // CACHE STATISTICS
-  // ==========================================
-  
+  // CACHE STATS
   async getCacheStats() {
-    if (!this.isAvailable()) return { status: 'disconnected' };
-    
     try {
+      const client = await this.getClient();
+      if (!client) {
+        return { status: 'disconnected' };
+      }
+      
       const info = await Promise.race([
-        this.redis.info('stats'),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 1000))
+        client.info('stats'),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
       ]);
       
       const dbsize = await Promise.race([
-        this.redis.dbsize(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 500))
+        client.dbsize(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 1000))
       ]);
       
       return {
         connected: true,
+        status: client.status,
         dbsize,
         info
       };
     } catch (error) {
-      return { status: 'timeout' };
+      return { status: 'error', message: error.message };
     }
   }
 
-  // ==========================================
-  // CLEAR ALL CACHE (Admin only)
-  // ==========================================
-  
+  // CLEAR ALL CACHE
   async clearAllCache() {
-    if (!this.isAvailable()) return false;
-    
     try {
-      await this.redis.flushdb();
-      console.log(`✅ Cache CLEARED: All cache cleared`);
+      const client = await this.getClient();
+      if (!client) return false;
+      
+      await client.flushdb();
+      console.log('✅ Cache cleared');
       return true;
     } catch (error) {
-      console.error('Redis clearAllCache error:', error.message);
+      console.error('Cache clear error:', error.message);
       return false;
     }
   }
 }
 
-// Export singleton instance
+// Export singleton
 const cacheService = new CacheService();
 module.exports = cacheService;

@@ -1,4 +1,4 @@
-// backend/middleware/auth.js - PERFORMANCE OPTIMIZED
+// backend/middleware/auth.js - FIXED SESSION VERSION LOGIC
 const { verifyToken } = require('../utils/jwt');
 const User = require('../models/User');
 const cacheService = require('../services/cacheService');
@@ -17,7 +17,7 @@ setInterval(() => {
   }
 }, 300000);
 
-// 🔥 OPTIMIZED: Authenticate with token caching
+// 🔥 FIXED: Authenticate with proper session version handling
 const authenticate = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
@@ -78,34 +78,22 @@ const authenticate = async (req, res, next) => {
       return next();
     }
     
-    // 🔥 PERFORMANCE: Try Redis cache for user session validation
-    const cacheKey = `session:${decoded.userId}`;
-    let userSessionVersion = await cacheService.redis?.get(cacheKey);
+    // 🔥 CRITICAL FIX: Get CURRENT session version from database
+    const user = await User.findOne({ userId: decoded.userId })
+      .select('userId email sessionVersion')
+      .lean(); // 🔥 PERFORMANCE: Use lean() for faster queries
     
-    if (userSessionVersion === null) {
-      // Cache miss - fetch from DB
-      const user = await User.findOne({ userId: decoded.userId })
-        .select('userId email sessionVersion')
-        .lean(); // 🔥 PERFORMANCE: Use lean() for faster queries
-      
-      if (!user) {
-        return res.status(401).json({
-          success: false,
-          message: 'User not found. Please login again.',
-          code: 'USER_NOT_FOUND'
-        });
-      }
-      
-      userSessionVersion = user.sessionVersion;
-      
-      // 🔥 Cache session version for 5 minutes
-      await cacheService.redis?.setex(cacheKey, 300, userSessionVersion.toString());
-    } else {
-      userSessionVersion = parseInt(userSessionVersion);
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not found. Please login again.',
+        code: 'USER_NOT_FOUND'
+      });
     }
     
-    // 🔥 SESSION VERSION VALIDATION
-    if (decoded.sessionVersion !== userSessionVersion) {
+    // 🔥 CRITICAL FIX: Compare token's sessionVersion with current DB sessionVersion
+    // If they DON'T match, this login was from a previous session (another device logged in after this)
+    if (decoded.sessionVersion !== user.sessionVersion) {
       tokenCache.delete(token); // Remove invalid token from cache
       
       return res.status(401).json({
@@ -115,6 +103,7 @@ const authenticate = async (req, res, next) => {
       });
     }
     
+    // 🔥 SUCCESS: Session version matches - this is the current active login
     const userData = {
       userId: decoded.userId,
       email: decoded.email,

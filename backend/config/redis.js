@@ -1,159 +1,146 @@
-// backend/config/redis.js - UPSTASH-OPTIMIZED FOR SERVERLESS
+// backend/config/redis.js - SERVERLESS-OPTIMIZED WITH LAZY CONNECTION
 const Redis = require('ioredis');
 
 let redisClient = null;
-let connectionAttempted = false;
-let isConnecting = false;
+let connectionPromise = null;
+let connectionFailed = false;
 
-const connectRedis = () => {
-  // Prevent multiple connection attempts
-  if (connectionAttempted) {
+// 🔥 LAZY CONNECTION - Only connect when actually needed
+const connectRedis = async () => {
+  // Return existing connection if available
+  if (redisClient && redisClient.status === 'ready') {
     return redisClient;
   }
   
-  connectionAttempted = true;
-  isConnecting = true;
+  // Return existing connection promise if connecting
+  if (connectionPromise) {
+    return connectionPromise;
+  }
   
-  try {
-    console.log('🔄 Connecting to Upstash Redis...');
-    
-    if (!process.env.UPSTASH_REDIS_URL) {
-      console.log('⚠️ UPSTASH_REDIS_URL not set - skipping Redis');
-      isConnecting = false;
-      return null;
-    }
-    
-    // Parse Upstash URL (format: rediss://default:password@host:port)
-    const redisUrl = process.env.UPSTASH_REDIS_URL;
-    
-    // 🔥 UPSTASH-SPECIFIC: Ultra-aggressive settings for serverless
-    redisClient = new Redis(redisUrl, {
-      // Connection settings
-      connectTimeout: 5000, // 5 seconds for initial connection
-      maxRetriesPerRequest: 2, // Try twice per request
-      enableReadyCheck: true, // Wait for ready
-      enableAutoPipelining: true, // Better performance
-      
-      // TLS settings for Upstash
-      tls: {
-        rejectUnauthorized: false
-      },
-      
-      // Retry strategy - give up faster
-      retryStrategy: (times) => {
-        if (times > 3) {
-          console.log('❌ Redis retry limit reached - giving up');
-          isConnecting = false;
-          return null;
-        }
-        const delay = Math.min(times * 200, 1000);
-        console.log(`🔄 Redis retry attempt ${times}, waiting ${delay}ms`);
-        return delay;
-      },
-      
-      // Don't reconnect in serverless
-      reconnectOnError: () => false,
-      
-      // Connection pool
-      lazyConnect: false, // Connect immediately
-      enableOfflineQueue: false, // Don't queue when offline
-      
-      // Timeouts
-      commandTimeout: 3000, // 3 second command timeout
-      keepAlive: 30000, // 30 seconds
-      
-      // Family
-      family: 4 // IPv4 only
-    });
-
-    // Connection events
-    redisClient.on('connect', () => {
-      console.log('🔗 Redis connecting...');
-    });
-
-    redisClient.on('ready', () => {
-      console.log('✅ Redis Connected and Ready (Upstash)');
-      isConnecting = false;
-    });
-
-    redisClient.on('error', (err) => {
-      isConnecting = false;
-      
-      if (err.message.includes('ETIMEDOUT')) {
-        console.log('⚠️ Redis timeout - check Upstash configuration');
-      } else if (err.message.includes('ECONNREFUSED')) {
-        console.log('⚠️ Redis connection refused - verify Upstash URL');
-      } else if (err.message.includes('WRONGPASS')) {
-        console.log('❌ Redis authentication failed - check password');
-      } else {
-        console.log('❌ Redis error:', err.message);
-      }
-      
-      // Mark as failed
-      redisClient = null;
-    });
-
-    redisClient.on('close', () => {
-      console.log('⚠️ Redis connection closed');
-      isConnecting = false;
-      redisClient = null;
-    });
-
-    redisClient.on('end', () => {
-      console.log('⚠️ Redis connection ended');
-      isConnecting = false;
-      redisClient = null;
-    });
-
-    // Test connection immediately
-    redisClient.ping()
-      .then(() => {
-        console.log('✅ Redis PING successful');
-      })
-      .catch((err) => {
-        console.log('❌ Redis PING failed:', err.message);
-        redisClient = null;
-        isConnecting = false;
-      });
-
-    return redisClient;
-    
-  } catch (error) {
-    console.error('❌ Redis initialization failed:', error.message);
-    redisClient = null;
-    isConnecting = false;
+  // Don't retry if previously failed
+  if (connectionFailed) {
     return null;
   }
-};
-
-// Get Redis client instance
-const getRedisClient = () => {
-  if (!redisClient && !isConnecting) {
-    return connectRedis();
+  
+  // Check if URL is set
+  if (!process.env.UPSTASH_REDIS_URL) {
+    console.log('⚠️ UPSTASH_REDIS_URL not set - Redis disabled');
+    connectionFailed = true;
+    return null;
   }
-  return redisClient;
+  
+  // Create connection promise
+  connectionPromise = new Promise(async (resolve, reject) => {
+    try {
+      console.log('🔄 Connecting to Upstash Redis...');
+      
+      const client = new Redis(process.env.UPSTASH_REDIS_URL, {
+        // 🔥 CRITICAL: Enable offline queue for serverless
+        enableOfflineQueue: true, // CHANGED: Allow commands while connecting
+        lazyConnect: false,
+        
+        // Connection settings
+        connectTimeout: 10000, // 10 seconds
+        maxRetriesPerRequest: 3,
+        enableReadyCheck: true,
+        enableAutoPipelining: true,
+        
+        // TLS for Upstash
+        tls: {
+          rejectUnauthorized: false
+        },
+        
+        // Retry strategy
+        retryStrategy: (times) => {
+          if (times > 3) {
+            console.log('❌ Redis retry limit reached');
+            connectionFailed = true;
+            return null;
+          }
+          const delay = Math.min(times * 500, 2000);
+          console.log(`🔄 Redis retry ${times}, delay: ${delay}ms`);
+          return delay;
+        },
+        
+        // Reconnect
+        reconnectOnError: (err) => {
+          console.log('🔄 Redis reconnect on error:', err.message);
+          return true;
+        },
+        
+        // Timeouts
+        commandTimeout: 5000,
+        keepAlive: 30000,
+        family: 4
+      });
+      
+      // Wait for ready or error
+      const readyPromise = new Promise((res, rej) => {
+        client.once('ready', () => {
+          console.log('✅ Redis connected successfully');
+          res(client);
+        });
+        
+        client.once('error', (err) => {
+          console.log('❌ Redis connection error:', err.message);
+          rej(err);
+        });
+      });
+      
+      // Timeout after 10 seconds
+      const timeoutPromise = new Promise((_, rej) => {
+        setTimeout(() => rej(new Error('Connection timeout')), 10000);
+      });
+      
+      redisClient = await Promise.race([readyPromise, timeoutPromise]);
+      connectionPromise = null;
+      resolve(redisClient);
+      
+    } catch (error) {
+      console.log('❌ Redis connection failed:', error.message);
+      connectionPromise = null;
+      connectionFailed = true;
+      redisClient = null;
+      resolve(null); // Resolve with null instead of rejecting
+    }
+  });
+  
+  return connectionPromise;
 };
 
-// Check if Redis is available (synchronous check)
+// Get Redis client (with lazy connection)
+const getRedisClient = async () => {
+  if (redisClient && redisClient.status === 'ready') {
+    return redisClient;
+  }
+  
+  return await connectRedis();
+};
+
+// Synchronous availability check
 const isRedisAvailable = () => {
   try {
-    return redisClient && redisClient.status === 'ready';
+    if (!redisClient) return false;
+    
+    // Accept multiple states
+    const validStates = ['ready', 'connect', 'connecting'];
+    return validStates.includes(redisClient.status);
   } catch (error) {
     return false;
   }
 };
 
-// Close Redis connection
+// Close connection
 const closeRedis = async () => {
   if (redisClient) {
     try {
       await redisClient.quit();
-      console.log('✅ Redis Connection Closed');
+      console.log('✅ Redis connection closed');
     } catch (error) {
       console.log('⚠️ Redis close error (ignored)');
     }
     redisClient = null;
-    isConnecting = false;
+    connectionPromise = null;
   }
 };
 

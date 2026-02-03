@@ -1,4 +1,4 @@
-// backend/models/UserData.js - FIXED DUPLICATE INDEX WARNINGS
+// backend/models/UserData.js - FIXED DUPLICATE INDEX WARNING
 const mongoose = require('mongoose');
 
 const userDataSchema = new mongoose.Schema({
@@ -6,6 +6,7 @@ const userDataSchema = new mongoose.Schema({
     type: String,
     required: true,
     ref: 'User'
+    // REMOVED: index: true (using schema.index() instead)
   },
   password: {
     type: String,

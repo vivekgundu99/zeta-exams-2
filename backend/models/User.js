@@ -1,20 +1,23 @@
-// backend/models/User.js - FIXED DUPLICATE INDEX WARNINGS
+// backend/models/User.js - FIXED DUPLICATE INDEX WARNING
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
   userId: {
     type: String,
     required: true
+    // REMOVED: index: true (using schema.index() instead)
   },
   email: {
     type: String,
     required: true,
     lowercase: true,
     trim: true
+    // REMOVED: index: true (using schema.index() instead)
   },
   phoneNumber: {
     type: String,
     required: true
+    // REMOVED: index: true (using schema.index() instead)
   },
   
   // 🔥 SESSION VERSION - KEY FIELD FOR SINGLE DEVICE LOGIN
