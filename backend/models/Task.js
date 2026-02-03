@@ -1,11 +1,11 @@
-// backend/models/Task.js - TASKS MODEL WITH ACTIVE AND COMPLETED TASKS
+// backend/models/Task.js - FIXED DUPLICATE KEY ERROR
 const mongoose = require('mongoose');
 
 const taskItemSchema = new mongoose.Schema({
   taskId: {
     type: String,
-    required: true,
-    unique: true
+    required: true
+    // REMOVED: unique: true (this was causing the error)
   },
   title: {
     type: String,
