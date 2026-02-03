@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { toast } from 'react-hot-toast';
@@ -33,6 +33,18 @@ export default function RegisterPage() {
   } = useForm<RegisterFormData>();
 
   const password = watch('password');
+
+  // 🔥 FORCE LIGHT THEME
+  useEffect(() => {
+    document.documentElement.classList.remove('dark');
+    
+    return () => {
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme === 'dark') {
+        document.documentElement.classList.add('dark');
+      }
+    };
+  }, []);
 
   const sendOTP = async (data: RegisterFormData) => {
     try {
@@ -96,9 +108,7 @@ export default function RegisterPage() {
 
       console.log('✅ Registration API response:', response.data);
 
-      // FIX: Check response structure properly
       if (response.data && response.data.success) {
-        // Store auth data
         if (response.data.token) {
           storage.set('token', response.data.token);
           console.log('✅ Token stored');
@@ -111,13 +121,11 @@ export default function RegisterPage() {
         
         toast.success('✅ Registration successful!');
         
-        // Delay navigation slightly
         setTimeout(() => {
           console.log('🔀 Navigating to user-details...');
           router.push('/user-details');
         }, 500);
       } else {
-        // Handle unsuccessful response
         const errorMsg = response.data?.message || 'Registration failed';
         console.error('❌ Registration failed:', errorMsg);
         toast.error(errorMsg);
@@ -125,9 +133,7 @@ export default function RegisterPage() {
     } catch (error: any) {
       console.error('💥 Registration error:', error);
       
-      // FIX: Better error handling
       if (error.response?.data?.success === true) {
-        // Sometimes the response is actually successful but axios treats it as error
         console.log('⚠️ False error - registration was actually successful');
         
         if (error.response.data.token) {
@@ -142,7 +148,6 @@ export default function RegisterPage() {
           router.push('/user-details');
         }, 500);
       } else {
-        // Actual error
         const errorMessage = error.response?.data?.message || error.message || 'Registration failed';
         toast.error(errorMessage);
       }

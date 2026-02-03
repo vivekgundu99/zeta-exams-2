@@ -27,9 +27,12 @@ export default function LoginPage() {
   } = useForm<LoginFormData>();
 
   /* ------------------------------------------------------------------
-     🔥 SESSION MESSAGE + AUTO REDIRECT
+     🔥 FORCE LIGHT THEME + SESSION MESSAGE + AUTO REDIRECT
   -------------------------------------------------------------------*/
   useEffect(() => {
+    // Force light theme on this page
+    document.documentElement.classList.remove('dark');
+    
     const message = sessionStorage.getItem('loginMessage');
     if (message) {
       toast.error(message, { duration: 5000 });
@@ -51,6 +54,14 @@ export default function LoginPage() {
         router.push('/dashboard');
       }
     }
+    
+    // Cleanup: restore theme when component unmounts
+    return () => {
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme === 'dark') {
+        document.documentElement.classList.add('dark');
+      }
+    };
   }, [router]);
 
   /* ------------------------------------------------------------------

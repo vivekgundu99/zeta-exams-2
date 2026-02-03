@@ -34,18 +34,27 @@ export default function UserDetailsPage() {
   const name = watch('name');
 
   useEffect(() => {
+    // 🔥 FORCE LIGHT THEME
+    document.documentElement.classList.remove('dark');
+    
     // Check if user is logged in
     const token = storage.get('token');
     if (!token) {
       router.push('/');
     }
+    
+    return () => {
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme === 'dark') {
+        document.documentElement.classList.add('dark');
+      }
+    };
   }, []);
 
   const onSubmit = async (data: UserDetailsFormData) => {
     try {
       setIsLoading(true);
 
-      // Validate required fields
       if (!data.name?.trim()) {
         toast.error('Name is required');
         return;
@@ -71,7 +80,6 @@ export default function UserDetailsPage() {
         return;
       }
 
-      // Prepare data
       const submitData = {
         name: data.name.trim(),
         profession: data.profession,
@@ -91,14 +99,12 @@ export default function UserDetailsPage() {
       if (response.data.success) {
         toast.success('Profile updated successfully!');
         
-        // Update local storage with new user data
         const currentUser = storage.get('user') || {};
         storage.set('user', {
           ...currentUser,
           ...response.data.userData
         });
         
-        // Navigate to subscription page after a short delay
         setTimeout(() => {
           router.push('/subscription');
         }, 500);

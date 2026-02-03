@@ -23,8 +23,18 @@ export default function SubscriptionPage() {
   const [validatingCode, setValidatingCode] = useState(false);
 
   useEffect(() => {
+    // 🔥 FORCE LIGHT THEME
+    document.documentElement.classList.remove('dark');
+    
     loadSubscriptionStatus();
     loadRazorpayScript();
+    
+    return () => {
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme === 'dark') {
+        document.documentElement.classList.add('dark');
+      }
+    };
   }, []);
 
   const loadSubscriptionStatus = async () => {
@@ -174,7 +184,6 @@ export default function SubscriptionPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-indigo-50 p-4 py-12">
       <div className="max-w-7xl mx-auto">
-        {/* 🔥 NEW: Back to Dashboard Button */}
         <div className="mb-6">
           <Button
             variant="outline"
@@ -189,7 +198,6 @@ export default function SubscriptionPage() {
           </Button>
         </div>
 
-        {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-5xl font-bold text-gradient mb-3">Choose Your Plan</h1>
           <p className="text-xl text-gray-600">Start your preparation journey with the perfect plan</p>
@@ -201,7 +209,6 @@ export default function SubscriptionPage() {
           )}
         </div>
 
-        {/* FEATURES COMPARISON TABLE - NOW FIRST */}
         <div className="mb-12">
           <h2 className="text-3xl font-bold text-center text-gray-900 mb-8">Compare Plans</h2>
           <Card>
@@ -224,40 +231,26 @@ export default function SubscriptionPage() {
                   </tr>
                   <tr className="border-b border-gray-100">
                     <td className="p-4 font-medium text-gray-900">Chapter Tests per day</td>
-                    <td className="p-4 text-center">
-                      <span className="text-red-500">✗</span>
-                    </td>
+                    <td className="p-4 text-center"><span className="text-red-500">✗</span></td>
                     <td className="p-4 text-center text-green-600">10 ✓</td>
                     <td className="p-4 text-center bg-yellow-50 text-green-600 font-semibold">50 ✓</td>
                   </tr>
                   <tr className="border-b border-gray-100">
                     <td className="p-4 font-medium text-gray-900">Formulas & Flashcards</td>
-                    <td className="p-4 text-center">
-                      <span className="text-red-500">✗</span>
-                    </td>
-                    <td className="p-4 text-center">
-                      <span className="text-red-500">✗</span>
-                    </td>
+                    <td className="p-4 text-center"><span className="text-red-500">✗</span></td>
+                    <td className="p-4 text-center"><span className="text-red-500">✗</span></td>
                     <td className="p-4 text-center bg-yellow-50 text-green-600 font-semibold">✓ Unlimited</td>
                   </tr>
                   <tr className="border-b border-gray-100">
                     <td className="p-4 font-medium text-gray-900">Mock Tests per day</td>
-                    <td className="p-4 text-center">
-                      <span className="text-red-500">✗</span>
-                    </td>
-                    <td className="p-4 text-center">
-                      <span className="text-red-500">✗</span>
-                    </td>
+                    <td className="p-4 text-center"><span className="text-red-500">✗</span></td>
+                    <td className="p-4 text-center"><span className="text-red-500">✗</span></td>
                     <td className="p-4 text-center bg-yellow-50 text-green-600 font-semibold">8 ✓</td>
                   </tr>
                   <tr>
                     <td className="p-4 font-medium text-gray-900">Advanced Analytics</td>
-                    <td className="p-4 text-center">
-                      <span className="text-red-500">✗</span>
-                    </td>
-                    <td className="p-4 text-center">
-                      <span className="text-red-500">✗</span>
-                    </td>
+                    <td className="p-4 text-center"><span className="text-red-500">✗</span></td>
+                    <td className="p-4 text-center"><span className="text-red-500">✗</span></td>
                     <td className="p-4 text-center bg-yellow-50 text-green-600 font-semibold">✓ Full Access</td>
                   </tr>
                 </tbody>
@@ -266,7 +259,6 @@ export default function SubscriptionPage() {
           </Card>
         </div>
 
-        {/* PRICING PLANS - NOW SECOND */}
         <div className="mb-12">
           <h2 className="text-3xl font-bold text-center text-gray-900 mb-8">Select Your Plan</h2>
           <div className="grid md:grid-cols-3 gap-8">
@@ -285,7 +277,6 @@ export default function SubscriptionPage() {
                 )}
 
                 <CardBody className="pt-8">
-                  {/* Plan Header */}
                   <div className="text-center mb-6">
                     <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-r ${plan.gradient} mb-4`}>
                       <span className="text-2xl text-white font-bold">
@@ -298,7 +289,6 @@ export default function SubscriptionPage() {
                     )}
                   </div>
 
-                  {/* Pricing */}
                   {plan.id === 'free' ? (
                     <div className="text-center mb-6">
                       <p className="text-4xl font-bold text-gray-900">₹0</p>
@@ -340,7 +330,6 @@ export default function SubscriptionPage() {
                     </div>
                   )}
 
-                  {/* Features */}
                   <div className="space-y-3">
                     {plan.features.map((feature, index) => (
                       <div key={index} className="flex items-start gap-2">
@@ -382,7 +371,6 @@ export default function SubscriptionPage() {
           </div>
         </div>
 
-        {/* Gift Code Section */}
         <Card className="max-w-md mx-auto">
           <CardBody>
             <h3 className="text-xl font-bold text-gray-900 mb-4 text-center">
