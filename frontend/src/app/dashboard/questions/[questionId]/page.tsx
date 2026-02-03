@@ -1,3 +1,4 @@
+// frontend/src/app/dashboard/questions/[questionId]/page.tsx - WITH FAVORITES
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -21,10 +22,11 @@ interface Question {
   optionB?: string;
   optionC?: string;
   optionD?: string;
-  optionAImageUrl?: string; // 🔥 NOW STORES COMBINED OPTIONS IMAGE
+  optionAImageUrl?: string;
   attempted?: boolean;
   userAnswer?: string;
   status?: string;
+  isFavorite?: boolean; // 🔥 NEW
 }
 
 interface Result {
@@ -49,6 +51,8 @@ export default function QuestionViewerPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [currentListPage, setCurrentListPage] = useState(1);
   const [totalQuestions, setTotalQuestions] = useState(0);
+  const [isFavorite, setIsFavorite] = useState(false); // 🔥 NEW
+  const [favoriteLoading, setFavoriteLoading] = useState(false); // 🔥 NEW
 
   useEffect(() => {
     loadQuestionsList();
@@ -96,6 +100,7 @@ export default function QuestionViewerPage() {
       if (response.data.success) {
         const q = response.data.question;
         setQuestion(q);
+        setIsFavorite(q.isFavorite || false); // 🔥 NEW
         
         if (q.attempted && q.userAnswer) {
           setSelectedAnswer(q.userAnswer);
@@ -155,6 +160,34 @@ export default function QuestionViewerPage() {
     }
   };
 
+  // 🔥 NEW: Toggle favorite
+  const toggleFavorite = async () => {
+    if (!question) return;
+    
+    try {
+      setFavoriteLoading(true);
+      const response = await questionsAPI.toggleFavorite(question.questionId);
+      
+      if (response.data.success) {
+        setIsFavorite(response.data.isFavorite);
+        toast.success(response.data.message);
+        
+        // Update in list
+        const updatedList = [...questionsList];
+        updatedList[currentIndex] = {
+          ...updatedList[currentIndex],
+          isFavorite: response.data.isFavorite
+        };
+        setQuestionsList(updatedList);
+        sessionStorage.setItem('questionsList', JSON.stringify(updatedList));
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to update favorite');
+    } finally {
+      setFavoriteLoading(false);
+    }
+  };
+
   const submitAnswer = async () => {
     if (!selectedAnswer) {
       toast.error('Please select an answer');
@@ -198,6 +231,7 @@ export default function QuestionViewerPage() {
     if (listParams?.chapter) urlParams.set('chapter', listParams.chapter);
     if (listParams?.topic) urlParams.set('topic', listParams.topic);
     if (listParams?.page) urlParams.set('page', listParams.page);
+    if (listParams?.filter) urlParams.set('filter', listParams.filter); // 🔥 NEW
 
     router.push(`/dashboard/questions/${targetQuestion.questionId}?${urlParams.toString()}`);
   };
@@ -248,11 +282,39 @@ export default function QuestionViewerPage() {
           ← Back to Questions
         </Button>
         
-        {questionsList.length > 0 && totalQuestions > 0 && (
-          <div className="text-sm text-gray-600 dark:text-gray-400">
-            Question {globalQuestionNumber} of {totalQuestions}
-          </div>
-        )}
+        <div className="flex items-center gap-4">
+          {/* 🔥 NEW: Favorite Button */}
+          <button
+            onClick={toggleFavorite}
+            disabled={favoriteLoading}
+            className={`p-2 rounded-lg transition-all ${
+              isFavorite
+                ? 'text-pink-500 hover:text-pink-600 bg-pink-50 dark:bg-pink-900/20'
+                : 'text-gray-400 hover:text-pink-500 hover:bg-pink-50 dark:hover:bg-pink-900/20'
+            } ${favoriteLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+          >
+            <svg
+              className="w-6 h-6"
+              fill={isFavorite ? 'currentColor' : 'none'}
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+              />
+            </svg>
+          </button>
+          
+          {questionsList.length > 0 && totalQuestions > 0 && (
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              Question {globalQuestionNumber} of {totalQuestions}
+            </div>
+          )}
+        </div>
       </div>
 
       <Card>
@@ -281,13 +343,18 @@ export default function QuestionViewerPage() {
               <span className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-100 rounded-full text-sm">
                 {question.subject} • {question.chapter}
               </span>
+              {/* 🔥 NEW: Favorite badge */}
+              {isFavorite && (
+                <span className="px-3 py-1 bg-pink-100 dark:bg-pink-900 text-pink-700 dark:text-pink-100 rounded-full text-sm font-semibold">
+                  ❤️ Favorite
+                </span>
+              )}
             </div>
 
             <div className="text-lg font-medium text-gray-900 dark:text-gray-50 mb-4 question-text">
               <LatexRenderer text={question.question} />
             </div>
 
-            {/* 🔥 50% SMALLER QUESTION IMAGE */}
             {question.questionImageUrl && (
               <img
                 src={question.questionImageUrl}
@@ -342,7 +409,6 @@ export default function QuestionViewerPage() {
                   );
                 })}
 
-                {/* 🔥 50% SMALLER OPTIONS IMAGE (stored in optionAImageUrl) */}
                 {question.optionAImageUrl && (
                   <div className="mt-4">
                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Options Image:</p>
@@ -388,11 +454,10 @@ export default function QuestionViewerPage() {
               {result.explanation && (
                 <div className="bg-blue-50 dark:bg-blue-900/30 p-6 rounded-lg mb-6 border-2 border-blue-200 dark:border-blue-800 explanation-text">
                   <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">Explanation:</h4>
-                  <div className="text-blue-800 dark:text-blue-200">
+                  <div className="text-sm text-blue-800 dark:text-blue-200">
                     <LatexRenderer text={result.explanation} />
                   </div>
 
-                  {/* 🔥 50% SMALLER EXPLANATION IMAGE */}
                   {result.explanationImageUrl && (
                     <img
                       src={result.explanationImageUrl}
@@ -465,6 +530,8 @@ export default function QuestionViewerPage() {
                     className={`w-10 h-10 rounded-lg font-medium text-sm transition-all ${
                       i === currentIndex
                         ? 'bg-purple-600 text-white ring-2 ring-purple-300 dark:ring-purple-700'
+                        : q.isFavorite // 🔥 UPDATED: Pink for favorites
+                        ? 'bg-pink-500 text-white hover:bg-pink-600'
                         : q.status === 'attempted' || q.attempted
                         ? 'bg-green-500 text-white hover:bg-green-600'
                         : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'

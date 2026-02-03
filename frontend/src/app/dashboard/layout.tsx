@@ -1,4 +1,4 @@
-// frontend/src/app/dashboard/layout.tsx - UPDATED
+// frontend/src/app/dashboard/layout.tsx - UPDATED WITH FOOTER
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -8,6 +8,7 @@ import { storage } from '@/lib/utils';
 import { authAPI, userAPI } from '@/lib/api';
 import { toast } from 'react-hot-toast';
 import ThemeToggle from '@/components/ui/ThemeToggle';
+import Footer from '@/components/Footer';
 
 export default function DashboardLayout({
   children,
@@ -147,7 +148,7 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
       {/* Mobile Menu Button */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -231,7 +232,7 @@ export default function DashboardLayout({
       </aside>
 
       {/* Main Content */}
-      <div className="lg:ml-64">
+      <div className="lg:ml-64 flex flex-col min-h-screen">
         {/* Top Navbar */}
         <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-30">
           <div className="px-4 py-3 flex items-center justify-between">
@@ -252,9 +253,12 @@ export default function DashboardLayout({
         </header>
 
         {/* Page Content */}
-        <main className="p-4 lg:p-6">
+        <main className="flex-1 p-4 lg:p-6">
           {children}
         </main>
+
+        {/* Footer */}
+        <Footer />
       </div>
 
       {/* Mobile Overlay */}

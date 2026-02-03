@@ -138,7 +138,7 @@ export const userAPI = {
   
   getLimits: () =>
     api.get('/api/user/limits'),
-  
+
   checkAndResetLimits: () =>
     api.post('/api/user/check-and-reset-limits'),
 };
@@ -175,6 +175,7 @@ export const questionsAPI = {
   getTopics: (subject: string, chapter: string, examType: string) =>
     api.get(`/api/questions/topics/${subject}/${chapter}?examType=${examType}`),
   
+  // 🔥 UPDATED: Add filter param
   getQuestions: (params: any) =>
     api.get('/api/questions/list', { params }),
   
@@ -183,6 +184,10 @@ export const questionsAPI = {
   
   submitAnswer: (data: any) =>
     api.post('/api/questions/submit-answer', data),
+  
+  // 🔥 NEW: Toggle favorite
+  toggleFavorite: (questionId: string) =>
+    api.post('/api/questions/toggle-favorite', { questionId }),
 };
 
 // Mock Tests API
