@@ -1,4 +1,4 @@
-// frontend/src/app/dashboard/chapter-tests/page.tsx - UPDATED
+// frontend/src/app/dashboard/chapter-tests/page.tsx - WITH TIMER AND FAVORITES
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -19,12 +19,26 @@ export default function ChapterTestsPage() {
   const [chapters, setChapters] = useState<string[]>([]);
   const [selectedSubject, setSelectedSubject] = useState('');
   const [selectedChapter, setSelectedChapter] = useState('');
+  const [selectedFilter, setSelectedFilter] = useState('all'); // 🔥 NEW
   const [test, setTest] = useState<any>(null);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<any[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [results, setResults] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [startTime, setStartTime] = useState<Date | null>(null); // 🔥 NEW
+  const [elapsedTime, setElapsedTime] = useState(0); // 🔥 NEW (in seconds)
+
+  // 🔥 NEW: Timer effect
+  useEffect(() => {
+    if (test && !showResults) {
+      const interval = setInterval(() => {
+        setElapsedTime(prev => prev + 1);
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }
+  }, [test, showResults]);
 
   useEffect(() => {
     loadUserExam();
@@ -95,6 +109,7 @@ export default function ChapterTestsPage() {
             examType,
             subject: selectedSubject,
             chapter: selectedChapter,
+            filter: selectedFilter, // 🔥 NEW
           }),
         }
       );
@@ -106,6 +121,8 @@ export default function ChapterTestsPage() {
         setCurrentQuestion(0);
         setAnswers(new Array(data.test.questions.length).fill(null));
         setShowResults(false);
+        setStartTime(new Date(data.test.startTime)); // 🔥 NEW
+        setElapsedTime(0); // 🔥 NEW
         toast.success('Test generated successfully!');
       } else {
         toast.error(data.message || 'Failed to generate test');
@@ -128,6 +145,12 @@ export default function ChapterTestsPage() {
 
     try {
       setLoading(true);
+
+      // 🔥 Calculate duration in minutes
+      const durationMinutes = Math.floor(elapsedTime / 60);
+      const durationSeconds = elapsedTime % 60;
+      const durationFormatted = `${durationMinutes}m ${durationSeconds}s`;
+
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/tests/submit-chapter-test`,
         {
@@ -141,6 +164,7 @@ export default function ChapterTestsPage() {
               questionId: q.questionId,
               userAnswer: answers[i] || '',
             })),
+            duration: durationFormatted, // 🔥 NEW
           }),
         }
       );
@@ -167,6 +191,15 @@ export default function ChapterTestsPage() {
     setResults(null);
     setAnswers([]);
     setCurrentQuestion(0);
+    setStartTime(null); // 🔥 NEW
+    setElapsedTime(0); // 🔥 NEW
+  };
+
+  // 🔥 NEW: Format elapsed time
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   if (loading) {
@@ -205,9 +238,22 @@ export default function ChapterTestsPage() {
       <div className="max-w-4xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900">Chapter Test</h1>
-          <Button variant="outline" onClick={resetTest}>
-            Exit Test
-          </Button>
+          <div className="flex items-center gap-4">
+            {/* 🔥 NEW: Timer Display */}
+            <div className="px-4 py-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-lg font-bold text-purple-900 dark:text-purple-100">
+                  {formatTime(elapsedTime)}
+                </span>
+              </div>
+            </div>
+            <Button variant="outline" onClick={resetTest}>
+              Exit Test
+            </Button>
+          </div>
         </div>
 
         <Card>
@@ -332,18 +378,22 @@ export default function ChapterTestsPage() {
     );
   }
 
-  // 🔥 UPDATED: Results view with ALL OPTIONS displayed for MCQ
+  // Results view with duration
   if (showResults && results) {
     return (
       <div className="max-w-4xl mx-auto space-y-6">
         <Card className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white">
           <CardBody className="p-8 text-center">
             <h2 className="text-3xl font-bold mb-2">Test Completed!</h2>
-            <p className="text-xl mb-4">
+            <p className="text-xl mb-2">
               Your Score: {results.correctAnswers}/{results.totalQuestions}
             </p>
-            <p className="text-lg">
+            <p className="text-lg mb-2">
               Accuracy: {results.accuracy}%
+            </p>
+            {/* 🔥 NEW: Show duration */}
+            <p className="text-md opacity-90">
+              Time Taken: {results.duration || formatTime(elapsedTime)}
             </p>
           </CardBody>
         </Card>
@@ -371,7 +421,6 @@ export default function ChapterTestsPage() {
                   <LatexRenderer text={detail.question} />
                 </div>
 
-                {/* 🔥 NEW: Display ALL OPTIONS for MCQ */}
                 {question.questionType === 'S' && (
                   <div className="space-y-2 mb-4">
                     {['A', 'B', 'C', 'D'].map((option) => {
@@ -409,7 +458,6 @@ export default function ChapterTestsPage() {
                   </div>
                 )}
 
-                {/* For Numerical questions */}
                 {question.questionType === 'N' && (
                   <div className="bg-gray-50 p-4 rounded-lg space-y-2 mb-4">
                     <p className="text-sm">
@@ -468,7 +516,7 @@ export default function ChapterTestsPage() {
 
       <Card>
         <CardBody>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <Dropdown
               label="Subject"
               value={selectedSubject}
@@ -485,10 +533,21 @@ export default function ChapterTestsPage() {
               onChange={(e) => setSelectedChapter(e.target.value)}
               options={[
                 { value: '', label: selectedSubject ? 'Select Chapter' : 'Select Subject First' },
-                { value: 'ALL_CHAPTERS', label: '📚 All Chapters' },  // 🔥 NEW
+                { value: 'ALL_CHAPTERS', label: '📚 All Chapters' },
                 ...chapters.map((c) => ({ value: c, label: c })),
               ]}
               disabled={!selectedSubject}
+            />
+
+            {/* 🔥 NEW: Filter Dropdown */}
+            <Dropdown
+              label="Filter"
+              value={selectedFilter}
+              onChange={(e) => setSelectedFilter(e.target.value)}
+              options={[
+                { value: 'all', label: '📋 All Questions' },
+                { value: 'favorites', label: '❤️ Favorites Only' },
+              ]}
             />
           </div>
 

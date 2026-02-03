@@ -1,20 +1,20 @@
+// backend/routes/tests.js - WITH FAVORITE FILTER AND TIMER
 const express = require('express');
 const router = express.Router();
 const Question = require('../models/Question');
+const QuestionAttempt = require('../models/QuestionAttempt');
 const Limits = require('../models/Limits');
 const Analytics = require('../models/Analytics');
 const Subscription = require('../models/Subscription');
 const { authenticate } = require('../middleware/auth');
 const { needsLimitReset, getNextResetTime } = require('../utils/helpers');
 
-// @route   POST /api/tests/generate-chapter-test
-// @desc    Generate a chapter test with 10 random questions
-// @access  Private
+// 🔥 UPDATED: Generate chapter test with favorite filter
 router.post('/generate-chapter-test', authenticate, async (req, res) => {
   try {
-    const { examType, subject, chapter } = req.body;
+    const { examType, subject, chapter, filter } = req.body; // 🔥 NEW: filter param
 
-    console.log('🎯 Generate chapter test:', { examType, subject, chapter });
+    console.log('🎯 Generate chapter test:', { examType, subject, chapter, filter });
 
     if (!examType || !subject || !chapter) {
       return res.status(400).json({
@@ -55,20 +55,38 @@ router.post('/generate-chapter-test', authenticate, async (req, res) => {
       });
     }
 
-    // 🔥 NEW: Build query based on chapter selection
+    // Build query
     let query = {
       examType,
       subject: new RegExp(`^${subject}$`, 'i')
     };
 
-    // 🔥 If NOT "ALL_CHAPTERS", filter by specific chapter
+    // If NOT "ALL_CHAPTERS", filter by specific chapter
     if (chapter !== 'ALL_CHAPTERS') {
       query.chapter = new RegExp(`^${chapter}$`, 'i');
     }
 
+    // 🔥 NEW: Filter by favorites
+    if (filter === 'favorites') {
+      const favoriteAttempts = await QuestionAttempt.find({
+        userId: req.user.userId,
+        isFavorite: true
+      }).select('questionId').lean();
+
+      const favoriteQuestionIds = favoriteAttempts.map(a => a.questionId);
+
+      if (favoriteQuestionIds.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'No favorite questions found in this chapter'
+        });
+      }
+
+      query.questionId = { $in: favoriteQuestionIds };
+    }
+
     console.log('📚 Query:', query);
 
-    // Get questions
     const questions = await Question.find(query);
 
     console.log(`📚 Found ${questions.length} questions`);
@@ -96,7 +114,9 @@ router.post('/generate-chapter-test', authenticate, async (req, res) => {
         questions: testQuestions,
         totalQuestions: 10,
         subject,
-        chapter: chapter === 'ALL_CHAPTERS' ? 'All Chapters' : chapter
+        chapter: chapter === 'ALL_CHAPTERS' ? 'All Chapters' : chapter,
+        // 🔥 NEW: Add start time for timer
+        startTime: new Date()
       }
     });
 
@@ -110,14 +130,12 @@ router.post('/generate-chapter-test', authenticate, async (req, res) => {
   }
 });
 
-// @route   POST /api/tests/submit-chapter-test
-// @desc    Submit chapter test and get results
-// @access  Private
+// 🔥 UPDATED: Submit with duration
 router.post('/submit-chapter-test', authenticate, async (req, res) => {
   try {
-    const { answers } = req.body;
+    const { answers, duration } = req.body; // 🔥 NEW: duration param
 
-    console.log('📝 Submit chapter test:', { answersCount: answers?.length });
+    console.log('📝 Submit chapter test:', { answersCount: answers?.length, duration });
 
     if (!answers || !Array.isArray(answers)) {
       return res.status(400).json({
@@ -187,6 +205,7 @@ router.post('/submit-chapter-test', authenticate, async (req, res) => {
         accuracy,
         correctAnswers: correctCount,
         incorrectAnswers: answers.length - correctCount,
+        duration, // 🔥 NEW: Return duration
         details: results
       }
     });

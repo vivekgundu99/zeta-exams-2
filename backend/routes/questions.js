@@ -1,4 +1,4 @@
-// backend/routes/questions.js - MAXIMUM PERFORMANCE OPTIMIZATION
+// backend/routes/questions.js - COMPLETE VERSION WITH FAVORITES FEATURE
 const express = require('express');
 const router = express.Router();
 const Question = require('../models/Question');
@@ -10,12 +10,11 @@ const { needsLimitReset, getNextResetTime } = require('../utils/helpers');
 const cacheService = require('../services/cacheService');
 const { questionLimiter } = require('../middleware/redisRateLimiter');
 
-// 🔥 PERFORMANCE: Get subjects for exam (CACHED)
+// Get subjects for exam (CACHED)
 router.get('/subjects', authenticate, async (req, res) => {
   try {
     const { examType } = req.query;
     
-    // 🔥 Static data - cache for 24 hours
     const cacheKey = `subjects:${examType}`;
     const cached = await cacheService.redis?.get(cacheKey);
     
@@ -30,7 +29,6 @@ router.get('/subjects', authenticate, async (req, res) => {
       ? ['Physics', 'Chemistry', 'Mathematics']
       : ['Physics', 'Chemistry', 'Biology'];
     
-    // Cache for 24 hours
     await cacheService.redis?.setex(cacheKey, 86400, JSON.stringify(subjects));
 
     res.json({
@@ -47,13 +45,12 @@ router.get('/subjects', authenticate, async (req, res) => {
   }
 });
 
-// 🔥 PERFORMANCE: Get chapters for subject (HEAVILY CACHED)
+// Get chapters for subject (HEAVILY CACHED)
 router.get('/chapters/:subject', authenticate, async (req, res) => {
   try {
     const { subject } = req.params;
     const { examType } = req.query;
 
-    // 🔥 Try cache first (2 hours)
     const cachedChapters = await cacheService.getChapters(examType, subject);
     
     if (cachedChapters) {
@@ -63,13 +60,11 @@ router.get('/chapters/:subject', authenticate, async (req, res) => {
       });
     }
 
-    // 🔥 PERFORMANCE: Optimized query with lean()
     const chapters = await Question.distinct('chapter', {
       examType,
       subject: new RegExp(`^${subject}$`, 'i')
     });
 
-    // Cache for 2 hours
     await cacheService.setChapters(examType, subject, chapters, 7200);
 
     res.json({
@@ -86,13 +81,12 @@ router.get('/chapters/:subject', authenticate, async (req, res) => {
   }
 });
 
-// 🔥 PERFORMANCE: Get topics for chapter (HEAVILY CACHED)
+// Get topics for chapter (HEAVILY CACHED)
 router.get('/topics/:subject/:chapter', authenticate, async (req, res) => {
   try {
     const { subject, chapter } = req.params;
     const { examType } = req.query;
 
-    // 🔥 Try cache first (2 hours)
     const cachedTopics = await cacheService.getTopics(examType, subject, chapter);
     
     if (cachedTopics) {
@@ -102,14 +96,12 @@ router.get('/topics/:subject/:chapter', authenticate, async (req, res) => {
       });
     }
 
-    // 🔥 PERFORMANCE: Optimized query
     const topics = await Question.distinct('topic', {
       examType,
       subject: new RegExp(`^${subject}$`, 'i'),
       chapter: new RegExp(`^${chapter}$`, 'i')
     });
 
-    // Cache for 2 hours
     await cacheService.setTopics(examType, subject, chapter, topics, 7200);
 
     res.json({
@@ -126,46 +118,60 @@ router.get('/topics/:subject/:chapter', authenticate, async (req, res) => {
   }
 });
 
-// 🔥 MAXIMUM PERFORMANCE: Get questions list (AGGRESSIVE CACHING)
-router.get('/list', authenticate, questionLimiter, async (req, res) => {
+// 🔥 NEW: Toggle favorite
+router.post('/toggle-favorite', authenticate, questionLimiter, async (req, res) => {
   try {
-    const { examType, subject, chapter, topic, page = 1, limit = 20 } = req.query;
+    const { questionId } = req.body;
 
-    // 🔥 Try cache first
-    const cacheKey = `qlist:${examType}:${subject}:${chapter}:${topic}:${page}`;
-    const cachedList = await cacheService.redis?.get(cacheKey);
-
-    if (cachedList) {
-      const parsed = JSON.parse(cachedList);
-      
-      // Get attempt status (not cached as it changes frequently)
-      const questionIds = parsed.questions.map(q => q.questionId);
-      const attempts = await QuestionAttempt.find({
-        userId: req.user.userId,
-        questionId: { $in: questionIds }
-      })
-      .select('questionId userAnswer')
-      .lean(); // 🔥 PERFORMANCE
-
-      const attemptsMap = new Map(attempts.map(a => [a.questionId, a.userAnswer]));
-
-      const questionsWithStatus = parsed.questions.map(q => ({
-        ...q,
-        status: attemptsMap.has(q.questionId) ? 'attempted' : 'unattempted',
-        userAnswer: attemptsMap.get(q.questionId) || null
-      }));
-
-      return res.json({
-        success: true,
-        count: questionsWithStatus.length,
-        total: parsed.total,
-        page: parseInt(page),
-        totalPages: parsed.totalPages,
-        questions: questionsWithStatus
+    if (!questionId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Question ID is required'
       });
     }
 
-    // 🔥 PERFORMANCE: Optimized query
+    // Find existing attempt or create new one
+    let attempt = await QuestionAttempt.findOne({
+      userId: req.user.userId,
+      questionId
+    });
+
+    if (!attempt) {
+      // Create new attempt with favorite flag
+      attempt = await QuestionAttempt.create({
+        userId: req.user.userId,
+        questionId,
+        userAnswer: '', // Empty for favorite-only
+        isFavorite: true
+      });
+    } else {
+      // Toggle favorite
+      attempt.isFavorite = !attempt.isFavorite;
+      await attempt.save();
+    }
+
+    res.json({
+      success: true,
+      isFavorite: attempt.isFavorite,
+      message: attempt.isFavorite ? 'Added to favorites' : 'Removed from favorites'
+    });
+
+  } catch (error) {
+    console.error('💥 Toggle favorite error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+});
+
+// 🔥 UPDATED: Get questions list with favorite filter
+router.get('/list', authenticate, questionLimiter, async (req, res) => {
+  try {
+    const { examType, subject, chapter, topic, page = 1, limit = 20, filter } = req.query;
+
+    // Build query
     const query = { examType };
     if (subject) query.subject = new RegExp(`^${subject}$`, 'i');
     if (chapter) query.chapter = new RegExp(`^${chapter}$`, 'i');
@@ -173,7 +179,30 @@ router.get('/list', authenticate, questionLimiter, async (req, res) => {
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // 🔥 PERFORMANCE: Select only needed fields + lean()
+    // 🔥 NEW: Filter by favorites
+    if (filter === 'favorites') {
+      // Get favorite question IDs
+      const favoriteAttempts = await QuestionAttempt.find({
+        userId: req.user.userId,
+        isFavorite: true
+      }).select('questionId').lean();
+
+      const favoriteQuestionIds = favoriteAttempts.map(a => a.questionId);
+
+      if (favoriteQuestionIds.length === 0) {
+        return res.json({
+          success: true,
+          count: 0,
+          total: 0,
+          page: parseInt(page),
+          totalPages: 0,
+          questions: []
+        });
+      }
+
+      query.questionId = { $in: favoriteQuestionIds };
+    }
+
     const questions = await Question.find(query)
       .select('questionId serialNumber questionType question subject chapter topic questionImageUrl')
       .sort({ serialNumber: 1 })
@@ -183,32 +212,28 @@ router.get('/list', authenticate, questionLimiter, async (req, res) => {
 
     const total = await Question.countDocuments(query);
 
-    // Get attempt status
+    // Get attempt status and favorites
     const questionIds = questions.map(q => q.questionId);
     const attempts = await QuestionAttempt.find({
       userId: req.user.userId,
       questionId: { $in: questionIds }
     })
-    .select('questionId userAnswer')
+    .select('questionId userAnswer isFavorite')
     .lean();
 
-    const attemptsMap = new Map(attempts.map(a => [a.questionId, a.userAnswer]));
+    const attemptsMap = new Map(attempts.map(a => [a.questionId, a]));
 
-    const questionsWithStatus = questions.map(q => ({
-      ...q,
-      status: attemptsMap.has(q.questionId) ? 'attempted' : 'unattempted',
-      userAnswer: attemptsMap.get(q.questionId) || null
-    }));
+    const questionsWithStatus = questions.map(q => {
+      const attempt = attemptsMap.get(q.questionId);
+      return {
+        ...q,
+        status: attempt?.userAnswer ? 'attempted' : 'unattempted',
+        userAnswer: attempt?.userAnswer || null,
+        isFavorite: attempt?.isFavorite || false // 🔥 NEW
+      };
+    });
 
     const totalPages = Math.ceil(total / parseInt(limit));
-
-    // 🔥 Cache the base list (2 hours)
-    const cacheData = {
-      questions,
-      total,
-      totalPages
-    };
-    await cacheService.redis?.setex(cacheKey, 7200, JSON.stringify(cacheData));
 
     res.json({
       success: true,
@@ -229,104 +254,35 @@ router.get('/list', authenticate, questionLimiter, async (req, res) => {
   }
 });
 
-// 🔥 MAXIMUM PERFORMANCE: Get single FULL question
+// 🔥 UPDATED: Get single question with favorite status
 router.get('/:questionId', authenticate, questionLimiter, async (req, res) => {
   try {
     const { questionId } = req.params;
 
-    // 🔥 Try cache first
     const cachedQuestion = await cacheService.getFullQuestion(questionId);
 
+    let question;
     if (cachedQuestion) {
-      // Check attempt status
-      const attempt = await QuestionAttempt.findOne({
-        userId: req.user.userId,
-        questionId: questionId
-      })
-      .select('userAnswer')
-      .lean();
+      question = cachedQuestion;
+    } else {
+      question = await Question.findOne({ questionId: questionId }).lean();
 
-      // 🔥 PERFORMANCE: Check limits from cache
-      let limits = await cacheService.getLimits(req.user.userId);
-      
-      if (!limits) {
-        limits = await Limits.findOne({ userId: req.user.userId })
-          .select('subscription questionCount limitResetTime')
-          .lean();
-        
-        if (!limits) {
-          const Subscription = require('../models/Subscription');
-          const subscription = await Subscription.findOne({ userId: req.user.userId })
-            .select('subscription')
-            .lean();
-          
-          limits = await Limits.create({
-            userId: req.user.userId,
-            subscription: subscription?.subscription || 'free',
-            questionCount: 0,
-            limitResetTime: getNextResetTime()
-          });
-        }
-        
-        // Cache limits
-        const limitStatus = Limits.getLimitsForSubscription(limits.subscription);
-        const limitsData = {
-          limits: {
-            questions: {
-              used: limits.questionCount,
-              limit: limitStatus.questions,
-              reached: limits.questionCount >= limitStatus.questions
-            }
-          },
-          resetTime: limits.limitResetTime
-        };
-        await cacheService.setLimits(req.user.userId, limitsData, 3600);
-      }
-
-      // Check if limit reached
-      if (limits.limits?.questions?.reached) {
-        return res.status(403).json({
+      if (!question) {
+        return res.status(404).json({
           success: false,
-          message: 'Daily question limit reached',
-          limit: limits.limits.questions
+          message: 'Question not found'
         });
       }
 
-      // Increment count (async - don't wait)
-      Limits.updateOne(
-        { userId: req.user.userId },
-        { $inc: { questionCount: 1 } }
-      ).exec();
-      
-      // Invalidate cache (async - don't wait)
-      cacheService.invalidateLimits(req.user.userId);
-
-      return res.json({
-        success: true,
-        question: {
-          ...cachedQuestion,
-          attempted: !!attempt,
-          userAnswer: attempt?.userAnswer || null
-        }
-      });
+      await cacheService.setFullQuestion(questionId, question, 7200);
     }
 
-    // 🔥 CACHE MISS - Fetch from DB
-    const question = await Question.findOne({ questionId: questionId }).lean();
-
-    if (!question) {
-      return res.status(404).json({
-        success: false,
-        message: 'Question not found'
-      });
-    }
-
-    // Check attempt
+    // Check attempt and favorite
     const attempt = await QuestionAttempt.findOne({
       userId: req.user.userId,
       questionId: questionId
     })
-    .select('userAnswer')
+    .select('userAnswer isFavorite')
     .lean();
 
     // Check limits
@@ -383,15 +339,13 @@ router.get('/:questionId', authenticate, questionLimiter, async (req, res) => {
     
     cacheService.invalidateLimits(req.user.userId);
 
-    // 🔥 Cache the question (2 hours)
-    await cacheService.setFullQuestion(questionId, question, 7200);
-
     res.json({
       success: true,
       question: {
         ...question,
         attempted: !!attempt,
-        userAnswer: attempt?.userAnswer || null
+        userAnswer: attempt?.userAnswer || null,
+        isFavorite: attempt?.isFavorite || false // 🔥 NEW
       }
     });
 
@@ -405,7 +359,7 @@ router.get('/:questionId', authenticate, questionLimiter, async (req, res) => {
   }
 });
 
-// 🔥 OPTIMIZED: Submit answer
+// Submit answer
 router.post('/submit-answer', authenticate, questionLimiter, async (req, res) => {
   try {
     const { questionId, userAnswer } = req.body;
