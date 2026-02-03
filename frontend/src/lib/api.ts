@@ -279,3 +279,33 @@ export const adminAPI = {
   processRefund: (ticketNumber: string) =>
     api.post('/api/admin/refunds/process', { ticketNumber }),
 };
+
+export const tasksAPI = {
+  // Get all tasks (active + completed)
+  getTasks: () =>
+    api.get('/api/tasks'),
+  
+  // Add new task
+  addTask: (data: { title: string; dueDate: string | null }) =>
+    api.post('/api/tasks/add', data),
+  
+  // Edit task
+  editTask: (taskId: string, data: { title?: string; dueDate?: string | null }) =>
+    api.put(`/api/tasks/edit/${taskId}`, data),
+  
+  // Delete active task
+  deleteTask: (taskId: string) =>
+    api.delete(`/api/tasks/delete/${taskId}`),
+  
+  // Complete task
+  completeTask: (taskId: string) =>
+    api.post(`/api/tasks/complete/${taskId}`),
+  
+  // Delete completed task
+  deleteCompletedTask: (taskId: string) =>
+    api.delete(`/api/tasks/completed/${taskId}`),
+  
+  // Get stats
+  getStats: () =>
+    api.get('/api/tasks/stats'),
+};

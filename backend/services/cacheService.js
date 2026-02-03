@@ -1,4 +1,4 @@
-// backend/services/cacheService.js - ASYNC-SAFE FOR SERVERLESS
+// backend/services/cacheService.js - ASYNC-SAFE FOR SERVERLESS WITH TASKS SUPPORT
 const { getRedisClient, isRedisAvailable } = require('../config/redis');
 
 class CacheService {
@@ -152,6 +152,20 @@ class CacheService {
     return await this.safeDel(`analytics:${userId}`);
   }
 
+  // 🔥 NEW: TASKS CACHING
+  async getTasks(userId) {
+    const cached = await this.safeGet(`tasks:${userId}`);
+    return cached ? JSON.parse(cached) : null;
+  }
+
+  async setTasks(userId, tasks, ttl = 300) {
+    return await this.safeSet(`tasks:${userId}`, JSON.stringify(tasks), ttl);
+  }
+
+  async invalidateTasks(userId) {
+    return await this.safeDel(`tasks:${userId}`);
+  }
+
   // CHAPTER/TOPIC CACHING
   async getChapters(examType, subject) {
     const cached = await this.safeGet(`chapters:${examType}:${subject}`);
@@ -209,7 +223,8 @@ class CacheService {
         `limits:${userId}`,
         `profile:${userId}`,
         `subscription:${userId}`,
-        `analytics:${userId}`
+        `analytics:${userId}`,
+        `tasks:${userId}` // 🔥 NEW
       ];
       
       await Promise.race([

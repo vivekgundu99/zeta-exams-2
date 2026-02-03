@@ -1,4 +1,4 @@
-// backend/server.js - SERVERLESS-OPTIMIZED WITH ROBUST HEALTH CHECK
+// backend/server.js - SERVERLESS-OPTIMIZED WITH TASKS ROUTE
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -127,11 +127,12 @@ app.use('/api/tests', require('./routes/tests'));
 app.use('/api/formulas', require('./routes/formulas'));
 app.use('/api/mock-tests', require('./routes/mockTests'));
 app.use('/api/analytics', require('./routes/analytics'));
+app.use('/api/tasks', require('./routes/tasks')); // 🔥 NEW: Tasks routes
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/payment', require('./routes/payment'));
 app.use('/api/tickets', require('./routes/tickets'));
 app.use('/api/giftcodes', require('./routes/giftcodes'));
-app.use('/api/diagnostics', require('./routes/diagnostics')); // 🔥 ADD THIS LINE
+app.use('/api/diagnostics', require('./routes/diagnostics'));
 console.log('✅ All routes registered');
 
 // 🔥 SCHEDULERS - Only in production and only if not in serverless cold start
@@ -284,11 +285,12 @@ app.get('/', (req, res) => {
     message: 'Welcome to Zeta Exams API',
     version: '2.0.0',
     serverless: true,
-    features: ['MongoDB', 'Redis Caching (Optional)', 'Rate Limiting', 'Auto Scaling'],
+    features: ['MongoDB', 'Redis Caching (Optional)', 'Rate Limiting', 'Auto Scaling', 'Tasks Management'],
     endpoints: {
       health: '/api/health',
       auth: '/api/auth',
       user: '/api/user',
+      tasks: '/api/tasks',
       admin: '/api/admin'
     }
   });
