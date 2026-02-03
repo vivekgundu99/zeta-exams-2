@@ -174,6 +174,21 @@ export default function SubscriptionPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-indigo-50 p-4 py-12">
       <div className="max-w-7xl mx-auto">
+        {/* 🔥 NEW: Back to Dashboard Button */}
+        <div className="mb-6">
+          <Button
+            variant="outline"
+            onClick={() => router.push('/dashboard')}
+            leftIcon={
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+            }
+          >
+            Back to Dashboard
+          </Button>
+        </div>
+
         {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-5xl font-bold text-gradient mb-3">Choose Your Plan</h1>

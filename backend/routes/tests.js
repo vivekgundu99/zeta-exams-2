@@ -55,12 +55,21 @@ router.post('/generate-chapter-test', authenticate, async (req, res) => {
       });
     }
 
-    // Get questions
-    const questions = await Question.find({
+    // 🔥 NEW: Build query based on chapter selection
+    let query = {
       examType,
-      subject: new RegExp(`^${subject}$`, 'i'),
-      chapter: new RegExp(`^${chapter}$`, 'i')
-    });
+      subject: new RegExp(`^${subject}$`, 'i')
+    };
+
+    // 🔥 If NOT "ALL_CHAPTERS", filter by specific chapter
+    if (chapter !== 'ALL_CHAPTERS') {
+      query.chapter = new RegExp(`^${chapter}$`, 'i');
+    }
+
+    console.log('📚 Query:', query);
+
+    // Get questions
+    const questions = await Question.find(query);
 
     console.log(`📚 Found ${questions.length} questions`);
 
@@ -87,7 +96,7 @@ router.post('/generate-chapter-test', authenticate, async (req, res) => {
         questions: testQuestions,
         totalQuestions: 10,
         subject,
-        chapter
+        chapter: chapter === 'ALL_CHAPTERS' ? 'All Chapters' : chapter
       }
     });
 
