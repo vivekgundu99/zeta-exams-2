@@ -28,7 +28,8 @@ export default function DashboardPage() {
 
       console.log('📊 Loading dashboard data...');
 
-      // 🔥 SINGLE API CALL - Backend handles everything
+      // 🔥 FORCE RELOAD: Add timestamp to bypass cache
+      const timestamp = Date.now();
       const response = await userAPI.getProfile();
       
       console.log('✅ Profile response:', response.data);
@@ -36,7 +37,6 @@ export default function DashboardPage() {
       if (response.data.success) {
         setUser(response.data.user);
         setSubscription(response.data.subscription);
-        // 🔥 BACKEND LIMITS ARE THE SINGLE SOURCE OF TRUTH
         setLimits(response.data.limits);
         
         console.log('✅ Dashboard loaded:', {

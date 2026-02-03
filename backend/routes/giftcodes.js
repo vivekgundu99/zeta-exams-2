@@ -42,7 +42,7 @@ router.post('/validate', authenticate, validateGiftCode, async (req, res) => {
   }
 });
 
-// 🔥 COMPREHENSIVE FIX: Redeem gift code with ALL upgrade paths
+// 🔥 FIXED: Redeem gift code with cache invalidation
 router.post('/redeem', authenticate, validateGiftCode, async (req, res) => {
   try {
     const { code } = req.body;
@@ -66,7 +66,7 @@ router.post('/redeem', authenticate, validateGiftCode, async (req, res) => {
     console.log(`   Plan: ${giftCode.subscriptionType}`);
     console.log(`   Duration: ${giftCode.duration}`);
 
-    // 🔥 CRITICAL: Get or create subscription
+    // Get or create subscription
     let subscription = await Subscription.findOne({ userId: req.user.userId });
     
     if (!subscription) {
@@ -86,15 +86,11 @@ router.post('/redeem', authenticate, validateGiftCode, async (req, res) => {
     console.log(`   Current plan: ${currentPlan}`);
     console.log(`   New plan: ${newPlan}`);
 
-    // 🔥 COMPREHENSIVE UPGRADE LOGIC
+    // Calculate end date
     const now = new Date();
     const endDate = calculateSubscriptionEndDate(giftCode.duration);
     
-    // Store previous subscription info
-    subscription.previousSubscription = currentPlan;
-    subscription.previousSubscriptionType = subscription.subscriptionType;
-    
-    // Set new subscription
+    // Update subscription
     subscription.subscription = newPlan;
     subscription.subscriptionType = 'giftcode';
     subscription.subscriptionStatus = 'active';
@@ -106,7 +102,7 @@ router.post('/redeem', authenticate, validateGiftCode, async (req, res) => {
     console.log(`   ✅ Subscription updated: ${currentPlan} → ${newPlan}`);
     console.log(`   ✅ Valid until: ${endDate.toISOString()}`);
 
-    // 🔥 CRITICAL: Update or create limits
+    // Update limits
     let limits = await Limits.findOne({ userId: req.user.userId });
     
     if (!limits) {
@@ -143,6 +139,11 @@ router.post('/redeem', authenticate, validateGiftCode, async (req, res) => {
 
     console.log('   ✅ Gift code marked as used');
 
+    // 🔥 CRITICAL: Invalidate ALL user cache
+    const cacheService = require('../services/cacheService');
+    await cacheService.invalidateUserCache(req.user.userId);
+    console.log('   ✅ Cache invalidated');
+
     res.json({
       success: true,
       message: 'Gift code redeemed successfully',
@@ -165,5 +166,4 @@ router.post('/redeem', authenticate, validateGiftCode, async (req, res) => {
     });
   }
 });
-
 module.exports = router;

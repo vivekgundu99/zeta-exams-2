@@ -172,7 +172,18 @@ export default function SubscriptionPage() {
 
       if (response.data.success) {
         toast.success('Gift code redeemed successfully!');
-        router.push('/dashboard');
+        
+        // 🔥 CRITICAL: Force reload subscription status
+        await loadSubscriptionStatus();
+        
+        // 🔥 CRITICAL: Clear any cached user data
+        const { storage } = await import('@/lib/utils');
+        storage.remove('user');
+        
+        setTimeout(() => {
+          router.push('/dashboard');
+          router.refresh(); // Force page refresh
+        }, 500);
       }
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Invalid gift code');

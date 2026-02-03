@@ -35,17 +35,6 @@ const subscriptionSchema = new mongoose.Schema({
     enum: ['active', 'inactive'],
     default: 'active'
   },
-  // 🔥 NEW: Track previous subscription for downgrade reference
-  previousSubscription: {
-    type: String,
-    enum: ['free', 'silver', 'gold'],
-    default: null
-  },
-  previousSubscriptionType: {
-    type: String,
-    enum: ['original', 'giftcode'],
-    default: null
-  }
 }, {
   timestamps: true
 });
@@ -76,10 +65,6 @@ subscriptionSchema.pre('save', async function(next) {
       if (this.isExpired()) {
         console.log(`⚠️ Subscription expired for user ${this.userId}`);
         console.log(`   Previous: ${this.subscription} (${this.subscriptionType})`);
-        
-        // Store previous subscription info
-        this.previousSubscription = this.subscription;
-        this.previousSubscriptionType = this.subscriptionType;
         
         // Downgrade to free
         this.subscription = 'free';
@@ -122,10 +107,6 @@ subscriptionSchema.pre('save', async function(next) {
 // 🔥 NEW: Method to upgrade subscription
 subscriptionSchema.methods.upgradeTo = async function(newPlan, duration, type = 'original') {
   const now = new Date();
-  
-  // Store previous subscription
-  this.previousSubscription = this.subscription;
-  this.previousSubscriptionType = this.subscriptionType;
   
   // Calculate end date
   let endDate = new Date(now);
@@ -201,10 +182,6 @@ subscriptionSchema.statics.checkAndExpireAll = async function() {
     
     for (const sub of expiredSubs) {
       console.log(`   Expiring: ${sub.userId} - ${sub.subscription}`);
-      
-      // Store previous
-      sub.previousSubscription = sub.subscription;
-      sub.previousSubscriptionType = sub.subscriptionType;
       
       // Downgrade to free
       sub.subscription = 'free';

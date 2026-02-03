@@ -35,31 +35,8 @@ router.get('/profile', authenticate, async (req, res) => {
       });
     }
 
-    // 🔥 TRY CACHE FIRST
-    const cachedProfile = await cacheService.getUserProfile(req.user.userId);
-    const cachedLimits = await cacheService.getLimits(req.user.userId);
-    const cachedSubscription = await cacheService.getSubscription(req.user.userId);
-
-    if (cachedProfile && cachedLimits && cachedSubscription) {
-      console.log('✅ Serving from cache');
-      
-      // Still check if limits need reset
-      if (needsLimitReset(cachedLimits.resetTime)) {
-        console.log('🔄 Limits need reset - invalidating cache');
-        await cacheService.invalidateLimits(req.user.userId);
-      } else {
-        return res.status(200).json({
-          success: true,
-          user: cachedProfile,
-          subscription: cachedSubscription,
-          limits: cachedLimits.limits,
-          resetTime: cachedLimits.resetTime
-        });
-      }
-    }
-
-    // 🔥 CACHE MISS - FETCH FROM DATABASE
-    console.log('⚠️ Cache miss - fetching from database');
+    // 🔥 ALWAYS FETCH FRESH DATA - NO CACHE for subscription
+    console.log('⚠️ Fetching fresh data from database');
 
     const user = await User.findOne({ userId: req.user.userId });
     const userData = await UserData.findOne({ userId: req.user.userId });
@@ -74,7 +51,7 @@ router.get('/profile', authenticate, async (req, res) => {
       });
     }
 
-    // 🔥 FIX 1: Create subscription if doesn't exist (for new users)
+    // Create subscription if doesn't exist
     if (!subscription) {
       console.log('⚠️ Creating missing subscription for user');
       subscription = await Subscription.create({
@@ -88,15 +65,13 @@ router.get('/profile', authenticate, async (req, res) => {
       });
     }
 
-    // 🔥 FIX 2: Check expiry and auto-downgrade
+    // 🔥 CRITICAL: Check expiry EVERY time (no caching)
     if (subscription.subscription !== 'free') {
       const isExpired = subscription.isExpired();
       
       if (isExpired && subscription.subscriptionStatus === 'active') {
         console.log('⚠️ Subscription expired - Auto-downgrading to FREE');
         
-        subscription.previousSubscription = subscription.subscription;
-        subscription.previousSubscriptionType = subscription.subscriptionType;
         subscription.subscription = 'free';
         subscription.subscriptionType = 'original';
         subscription.subscriptionStatus = 'inactive';
@@ -108,7 +83,7 @@ router.get('/profile', authenticate, async (req, res) => {
       }
     }
 
-    // 🔥 FIX 3: Create limits if doesn't exist
+    // Create limits if doesn't exist
     if (!limits) {
       console.log('⚠️ Creating missing limits for user');
       limits = await Limits.create({
@@ -138,7 +113,7 @@ router.get('/profile', authenticate, async (req, res) => {
       console.log('✅ Limits auto-reset completed');
     }
 
-    // Sync limits subscription with actual subscription
+    // Sync limits subscription
     if (limits.subscription !== subscription.subscription) {
       console.log('🔄 Syncing limits subscription:', subscription.subscription);
       limits.subscription = subscription.subscription;
@@ -156,7 +131,6 @@ router.get('/profile', authenticate, async (req, res) => {
     // Check limits status
     const limitStatus = limits.checkLimits();
 
-    // 🔥 PREPARE RESPONSE DATA
     const userProfile = {
       userId: user.userId,
       email: user.email,
@@ -187,14 +161,13 @@ router.get('/profile', authenticate, async (req, res) => {
       resetTime: limits.limitResetTime
     };
 
-    // 🔥 CACHE THE DATA
+    // 🔥 ONLY cache user profile and limits, NOT subscription
     await Promise.all([
       cacheService.setUserProfile(req.user.userId, userProfile, 1800),
-      cacheService.setSubscription(req.user.userId, subscriptionData, 3600),
-      cacheService.setLimits(req.user.userId, limitsData, 3600)
+      cacheService.setLimits(req.user.userId, limitsData, 600) // Shorter cache for limits
     ]);
 
-    console.log('✅ Profile cached successfully');
+    console.log('✅ Profile data prepared (subscription not cached)');
 
     res.status(200).json({
       success: true,

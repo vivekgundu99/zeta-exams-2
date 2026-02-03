@@ -182,6 +182,11 @@ router.post('/verify', authenticate, async (req, res) => {
     
     console.log(`   ✅ Limits updated to ${newPlan.toUpperCase()} tier`);
 
+    // 🔥 CRITICAL: Invalidate ALL user cache
+    const cacheService = require('../services/cacheService');
+    await cacheService.invalidateUserCache(req.user.userId);
+    console.log(`   ✅ Cache invalidated`);
+
     // Send confirmation email
     const UserData = require('../models/UserData');
     const User = require('../models/User');
