@@ -309,3 +309,50 @@ export const tasksAPI = {
   getStats: () =>
     api.get('/api/tasks/stats'),
 };
+
+// Wallet API
+export const walletAPI = {
+  // Get wallet balance and transactions
+  getWallet: () =>
+    api.get('/api/wallet'),
+  
+  // Create Razorpay order for top-up
+  createTopupOrder: (amount: number) =>
+    api.post('/api/wallet/topup/create-order', { amount }),
+  
+  // Verify top-up payment
+  verifyTopup: (data: {
+    razorpay_order_id: string;
+    razorpay_payment_id: string;
+    razorpay_signature: string;
+    amount: number;
+  }) =>
+    api.post('/api/wallet/topup/verify', data),
+  
+  // Purchase subscription using wallet
+  purchaseSubscription: (plan: string, duration: string) =>
+    api.post('/api/wallet/subscribe', { plan, duration }),
+};
+
+// Admin Wallet API  
+export const adminWalletAPI = {
+  // Get all top-ups
+  getTopups: (page: number = 1) =>
+    api.get(`/api/admin/wallet/topups?page=${page}`),
+  
+  // Get user wallet
+  getUserWallet: (userId: string) =>
+    api.get(`/api/admin/wallet/user/${userId}`),
+  
+  // Add money to user wallet
+  addMoney: (userId: string, amount: number, note?: string) =>
+    api.post('/api/admin/wallet/add-money', { userId, amount, note }),
+  
+  // Deduct money from user wallet
+  deductMoney: (userId: string, amount: number, note?: string) =>
+    api.post('/api/admin/wallet/deduct-money', { userId, amount, note }),
+  
+  // Get wallet statistics
+  getStats: () =>
+    api.get('/api/admin/wallet/stats'),
+};

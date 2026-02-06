@@ -55,6 +55,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { icon: '🎁', label: 'Gift Codes', href: '/admin/giftcodes' },
     { icon: '🎫', label: 'Tickets', href: '/admin/tickets' },
     { icon: '💰', label: 'Refunds', href: '/admin/refunds' },
+    { icon: '💰', label: 'Wallet Management', href: '/admin/wallet'}
   ];
 
   if (loading) {

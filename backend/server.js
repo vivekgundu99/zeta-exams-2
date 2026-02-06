@@ -128,7 +128,9 @@ app.use('/api/formulas', require('./routes/formulas'));
 app.use('/api/mock-tests', require('./routes/mockTests'));
 app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/tasks', require('./routes/tasks')); // 🔥 NEW: Tasks routes
+app.use('/api/wallet', require('./routes/wallet'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/admin/wallet', require('./routes/adminWallet'));
 app.use('/api/payment', require('./routes/payment'));
 app.use('/api/tickets', require('./routes/tickets'));
 app.use('/api/giftcodes', require('./routes/giftcodes'));
