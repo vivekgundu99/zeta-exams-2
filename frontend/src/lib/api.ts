@@ -141,6 +141,10 @@ export const userAPI = {
 
   checkAndResetLimits: () =>
     api.post('/api/user/check-and-reset-limits'),
+  // Cancel subscription and request refund
+  cancelSubscription: async (reason?: string) => {
+    return await api.post('/api/subscription/cancel-refund', { reason });
+  }
 };
 
 // Subscription API
@@ -275,9 +279,16 @@ export const adminAPI = {
   
   getRefunds: () =>
   api.get('/api/admin/refunds'),
-  
-  processRefund: (ticketNumber: string) =>
-    api.post('/api/admin/refunds/process', { ticketNumber }),
+
+  // Get all refund requests
+  getRefundRequests: async () => {
+    return await api.get('/api/admin/refunds');
+  },
+
+  // Process refund request (approve/reject)
+  processRefund: async (refundId: string, data: { approve: boolean }) => {
+    return await api.post(`/api/admin/process-refund/${refundId}`, data);
+  }
 };
 
 export const tasksAPI = {

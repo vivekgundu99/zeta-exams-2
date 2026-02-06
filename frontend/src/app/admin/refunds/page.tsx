@@ -1,16 +1,37 @@
-// frontend/src/app/admin/refunds/page.tsx - UPDATED with Remove
+// frontend/src/app/admin/refunds/page.tsx - UPDATED ADMIN REFUND PAGE
 'use client';
 
 import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import Card, { CardBody } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
+import Input from '@/components/ui/Input';
+import Loader from '@/components/ui/Loader';
+import { adminAPI } from '@/lib/api';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://zeta-exams-backend-2.vercel.app';
+interface RefundRequest {
+  _id: string;
+  userId: {
+    _id: string;
+    name: string;
+    email: string;
+    phone: string;
+  };
+  subscription: string;
+  subscriptionAmount: number;
+  subscriptionStartDate: string;
+  subscriptionEndDate: string;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  requestedAt: string;
+  processedAt?: string;
+  refundAmount?: number;
+}
 
 export default function AdminRefundsPage() {
-  const [refunds, setRefunds] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [refunds, setRefunds] = useState<RefundRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState<string | null>(null);
 
   useEffect(() => {
     loadRefunds();
@@ -18,172 +39,335 @@ export default function AdminRefundsPage() {
 
   const loadRefunds = async () => {
     try {
-      setLoading(true);
-      const response = await fetch(`${API_URL}/api/admin/refunds`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-      
-      const data = await response.json();
-      if (data.success) {
-        setRefunds(data.tickets || []);
+      const response = await adminAPI.getRefundRequests();
+      if (response.data.success) {
+        setRefunds(response.data.refunds);
       }
-    } catch (error) {
+    } catch (error: any) {
       toast.error('Failed to load refund requests');
     } finally {
       setLoading(false);
     }
   };
 
-  // 🔥 NEW: Remove refund request
-  const handleRemoveRefund = async (ticketNumber: string) => {
-    if (!window.confirm('Remove this refund request? This will set refundRequested to false.')) {
-      return;
-    }
-
+  const handleProcessRefund = async (refundId: string, approve: boolean) => {
     try {
-      const response = await fetch(`${API_URL}/api/admin/refunds/remove`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({ ticketNumber }),
+      setProcessing(refundId);
+
+      const response = await adminAPI.processRefund(refundId, {
+        approve,
       });
 
-      const data = await response.json();
-      if (data.success) {
-        toast.success('Refund request removed successfully');
+      if (response.data.success) {
+        toast.success(
+          approve
+            ? 'Refund approved and credited to wallet'
+            : 'Refund request rejected'
+        );
         loadRefunds();
       } else {
-        toast.error(data.message || 'Failed to remove refund');
+        toast.error(response.data.message);
       }
     } catch (error: any) {
-      toast.error('Failed to remove refund request');
+      toast.error('Failed to process refund');
+    } finally {
+      setProcessing(null);
     }
   };
 
-  const handleProcessRefund = async (ticketNumber: string) => {
-    if (!window.confirm('Process 50% refund for this ticket? This action cannot be undone.')) {
-      return;
-    }
+  const calculateRefundAmount = (refund: RefundRequest) => {
+    const now = new Date();
+    const start = new Date(refund.subscriptionStartDate);
+    const end = new Date(refund.subscriptionEndDate);
 
-    try {
-      const response = await fetch(`${API_URL}/api/admin/refunds/process`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({ ticketNumber }),
-      });
+    const totalDuration = end.getTime() - start.getTime();
+    const elapsed = now.getTime() - start.getTime();
+    const percentageUsed = (elapsed / totalDuration) * 100;
 
-      const data = await response.json();
-      if (data.success) {
-        toast.success(`Refund processed: ₹${data.refundAmount}`);
-        loadRefunds();
-      } else {
-        toast.error(data.message || 'Failed to process refund');
-      }
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to process refund');
+    if (percentageUsed < 50) {
+      return Math.floor(refund.subscriptionAmount * 0.5);
     }
+    return 0;
   };
+
+  const calculatePercentageUsed = (refund: RefundRequest) => {
+    const now = new Date();
+    const start = new Date(refund.subscriptionStartDate);
+    const end = new Date(refund.subscriptionEndDate);
+
+    const totalDuration = end.getTime() - start.getTime();
+    const elapsed = now.getTime() - start.getTime();
+    return Math.min(Math.floor((elapsed / totalDuration) * 100), 100);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader size="lg" text="Loading refund requests..." />
+      </div>
+    );
+  }
+
+  const pendingRefunds = refunds.filter((r) => r.status === 'pending');
+  const processedRefunds = refunds.filter((r) => r.status !== 'pending');
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Refund Management</h1>
-          <p className="text-gray-600">Pending Refunds: {refunds.length}</p>
-        </div>
-        <Button onClick={loadRefunds} variant="outline">
-          🔄 Refresh
-        </Button>
+    <div className="max-w-7xl mx-auto">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+          Refund Management
+        </h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-2">
+          Review and process user refund requests
+        </p>
       </div>
 
-      {refunds.length === 0 ? (
-        <Card>
-          <CardBody className="text-center py-12">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="text-3xl">✅</span>
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              No Pending Refunds
-            </h3>
-            <p className="text-gray-600">All refund requests have been processed</p>
-          </CardBody>
-        </Card>
-      ) : (
-        <div className="grid gap-6">
-          {refunds.map((ticket) => (
-            <Card key={ticket.ticketNumber} className="border-2 border-orange-200">
-              <CardBody>
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-3">
-                      <span className="font-mono text-lg font-bold text-purple-600">
-                        {ticket.ticketNumber}
-                      </span>
-                      <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm font-semibold">
-                        💰 Refund Requested
-                      </span>
-                      {ticket.refundEligible && (
-                        <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-semibold">
-                          ✅ Eligible
+      {/* Refund Policy Info */}
+      <Card className="mb-6 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+        <CardBody className="p-6">
+          <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-3">
+            💡 Refund Policy
+          </h3>
+          <ul className="space-y-2 text-sm text-blue-800 dark:text-blue-200">
+            <li>• Gift code subscriptions: Not eligible for refund</li>
+            <li>
+              • Original subscriptions: 50% refund to wallet if less than 50%
+              duration used
+            </li>
+            <li>• Refund amount credited to user's wallet, not bank account</li>
+            <li>
+              • User account immediately downgraded to FREE plan after approval
+            </li>
+          </ul>
+        </CardBody>
+      </Card>
+
+      {/* Pending Refunds */}
+      <div className="mb-8">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+          Pending Requests ({pendingRefunds.length})
+        </h2>
+
+        {pendingRefunds.length === 0 ? (
+          <Card>
+            <CardBody className="p-6 text-center text-gray-500 dark:text-gray-400">
+              No pending refund requests
+            </CardBody>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {pendingRefunds.map((refund) => {
+              const refundAmount = calculateRefundAmount(refund);
+              const percentageUsed = calculatePercentageUsed(refund);
+              const isEligible = percentageUsed < 50;
+
+              return (
+                <Card key={refund._id}>
+                  <CardBody className="p-6">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-3">
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                            {refund.userId.name}
+                          </h3>
+                          <span
+                            className={`px-3 py-1 rounded-full text-xs font-medium ${
+                              isEligible
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                                : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                            }`}
+                          >
+                            {isEligible ? 'Eligible' : 'Not Eligible'}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                          <div>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              Email
+                            </p>
+                            <p className="font-medium text-gray-900 dark:text-white">
+                              {refund.userId.email}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              Phone
+                            </p>
+                            <p className="font-medium text-gray-900 dark:text-white">
+                              {refund.userId.phone}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              Subscription
+                            </p>
+                            <p className="font-medium text-gray-900 dark:text-white uppercase">
+                              {refund.subscription}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              Amount Paid
+                            </p>
+                            <p className="font-medium text-gray-900 dark:text-white">
+                              ₹{refund.subscriptionAmount}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              Duration Used
+                            </p>
+                            <p className="font-medium text-gray-900 dark:text-white">
+                              {percentageUsed}%
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              Refund Amount
+                            </p>
+                            <p
+                              className={`font-bold ${
+                                refundAmount > 0
+                                  ? 'text-green-600 dark:text-green-400'
+                                  : 'text-red-600 dark:text-red-400'
+                              }`}
+                            >
+                              {refundAmount > 0 ? `₹${refundAmount}` : 'Not Eligible'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mb-4">
+                          <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                            Reason
+                          </p>
+                          <p className="text-gray-700 dark:text-gray-300">
+                            {refund.reason || 'No reason provided'}
+                          </p>
+                        </div>
+
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                          Requested: {new Date(refund.requestedAt).toLocaleString()}
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 ml-4">
+                        <Button
+                          variant="success"
+                          onClick={() => handleProcessRefund(refund._id, true)}
+                          disabled={processing === refund._id}
+                        >
+                          {processing === refund._id ? 'Processing...' : 'Approve'}
+                        </Button>
+                        <Button
+                          variant="danger"
+                          onClick={() => handleProcessRefund(refund._id, false)}
+                          disabled={processing === refund._id}
+                        >
+                          Reject
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Refund Calculation Info */}
+                    <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        📋 Refund Calculation:
+                      </p>
+                      <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                        <li>
+                          • Subscription Period:{' '}
+                          {new Date(refund.subscriptionStartDate).toLocaleDateString()} -{' '}
+                          {new Date(refund.subscriptionEndDate).toLocaleDateString()}
+                        </li>
+                        <li>• Percentage Used: {percentageUsed}%</li>
+                        <li>
+                          • Eligibility: {isEligible ? 'Yes (<50% used)' : 'No (≥50% used)'}
+                        </li>
+                        <li>
+                          • Refund Amount:{' '}
+                          {refundAmount > 0
+                            ? `₹${refundAmount} (50% of ₹${refund.subscriptionAmount})`
+                            : '₹0'}
+                        </li>
+                        <li>
+                          • Credit Destination: User Wallet (not bank account)
+                        </li>
+                      </ul>
+                    </div>
+                  </CardBody>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Processed Refunds */}
+      <div>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+          Processed Requests ({processedRefunds.length})
+        </h2>
+
+        {processedRefunds.length === 0 ? (
+          <Card>
+            <CardBody className="p-6 text-center text-gray-500 dark:text-gray-400">
+              No processed refund requests
+            </CardBody>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {processedRefunds.map((refund) => (
+              <Card key={refund._id}>
+                <CardBody className="p-6">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-3">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                          {refund.userId.name}
+                        </h3>
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-medium ${
+                            refund.status === 'approved'
+                              ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                              : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                          }`}
+                        >
+                          {refund.status.toUpperCase()}
                         </span>
-                      )}
-                    </div>
-
-                    <div className="grid md:grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <p className="text-sm text-gray-600">User</p>
-                        <p className="font-semibold text-gray-900">{ticket.userName}</p>
-                        <p className="text-sm text-gray-600">{ticket.userEmail}</p>
                       </div>
-                      <div>
-                        <p className="text-sm text-gray-600">User ID</p>
-                        <p className="font-mono text-sm text-gray-800">{ticket.userId}</p>
+
+                      <div className="grid grid-cols-2 gap-4 mb-3">
+                        <div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Subscription
+                          </p>
+                          <p className="font-medium text-gray-900 dark:text-white uppercase">
+                            {refund.subscription}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Refund Amount
+                          </p>
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            {refund.refundAmount ? `₹${refund.refundAmount}` : '₹0'}
+                          </p>
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="bg-blue-50 p-4 rounded-lg mb-4">
-                      <p className="text-sm text-blue-900 font-semibold mb-1">Issue:</p>
-                      <p className="text-blue-800">{ticket.issue}</p>
-                    </div>
-
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <span>Created:</span>
-                      <span>{new Date(ticket.createdAt).toLocaleString()}</span>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        Processed: {refund.processedAt ? new Date(refund.processedAt).toLocaleString() : 'N/A'}
+                      </div>
                     </div>
                   </div>
-
-                  <div className="ml-6 space-y-2">
-                    <Button
-                      variant="primary"
-                      onClick={() => handleProcessRefund(ticket.ticketNumber)}
-                      disabled={!ticket.refundEligible}
-                      className="w-full"
-                    >
-                      Process 50% Refund
-                    </Button>
-                    
-                    {/* 🔥 NEW: Remove Refund Button */}
-                    <Button
-                      variant="outline"
-                      onClick={() => handleRemoveRefund(ticket.ticketNumber)}
-                      className="w-full"
-                    >
-                      Remove Refund Request
-                    </Button>
-                  </div>
-                </div>
-              </CardBody>
-            </Card>
-          ))}
-        </div>
-      )}
+                </CardBody>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
