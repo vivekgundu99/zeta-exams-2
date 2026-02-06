@@ -280,7 +280,7 @@ export default function ChapterTestsPage() {
                 <img
                   src={question.questionImageUrl}
                   alt="Question"
-                  className="max-w-full h-auto rounded-lg mb-4"
+                  className="max-w-[50%] h-auto rounded-lg mb-4 border border-gray-200 dark:border-gray-700"
                 />
               )}
             </div>
@@ -485,7 +485,7 @@ export default function ChapterTestsPage() {
                       <img
                         src={detail.explanationImageUrl}
                         alt="Explanation"
-                        className="mt-2 max-w-full h-auto rounded-lg"
+                        className="max-w-[50%] h-auto rounded-lg mb-4 border border-gray-200 dark:border-gray-700"
                       />
                     )}
                   </div>

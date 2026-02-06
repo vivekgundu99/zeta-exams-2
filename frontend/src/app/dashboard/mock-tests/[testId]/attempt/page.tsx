@@ -304,7 +304,7 @@ export default function MockTestAttemptPage() {
                   <img
                     src={question.questionImageUrl}
                     alt="Question"
-                    className="max-w-full h-auto rounded-lg mb-4"
+                    className="max-w-[50%] h-auto rounded-lg mb-4 border border-gray-200 dark:border-gray-700"
                   />
                 )}
               </div>
