@@ -1,3 +1,4 @@
+// backend/models/Limits.js - UPDATED: ALL USERS GET 1 TICKET PER DAY
 const mongoose = require('mongoose');
 
 const limitsSchema = new mongoose.Schema({
@@ -60,26 +61,26 @@ const limitsSchema = new mongoose.Schema({
 limitsSchema.index({ userId: 1 });
 limitsSchema.index({ limitResetTime: 1 });
 
-// Method to get limits based on subscription
+// 🔥 UPDATED: Method to get limits based on subscription - ALL USERS GET 1 TICKET
 limitsSchema.statics.getLimitsForSubscription = function(subscription) {
   const limits = {
     free: {
       questions: 20,
       chapterTests: 0,
       mockTests: 0,
-      tickets: 0  // Free users cannot create tickets
+      tickets: 1  // 🔥 UPDATED: Free users get 1 ticket per day
     },
     silver: {
       questions: 200,
       chapterTests: 10,
       mockTests: 0,
-      tickets: 1  // 1 ticket per day - FIXED: Daily reset
+      tickets: 1  // 🔥 Silver users get 1 ticket per day
     },
     gold: {
       questions: 5000,
       chapterTests: 50,
       mockTests: 8,
-      tickets: 1  // 1 ticket per day - FIXED: Daily reset
+      tickets: 1  // 🔥 Gold users get 1 ticket per day
     }
   };
   return limits[subscription] || limits.free;
@@ -92,7 +93,7 @@ limitsSchema.methods.checkLimits = function() {
   this.questionCountLimitReached = this.questionCount >= limits.questions;
   this.chapterTestCountLimitReached = this.chapterTestCount >= limits.chapterTests;
   this.mockTestCountLimitReached = this.mockTestCount >= limits.mockTests;
-  this.ticketCountLimitReached = this.ticketCount >= limits.tickets;
+  this.ticketCountLimitReached = this.ticketCount >= limits.tickets;  // 🔥 Check ticket limit
   
   return {
     questions: {
