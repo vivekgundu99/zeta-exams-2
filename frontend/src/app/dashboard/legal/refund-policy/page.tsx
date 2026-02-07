@@ -1,4 +1,4 @@
-// frontend/src/app/dashboard/legal/refund-policy/page.tsx
+// frontend/src/app/dashboard/legal/refund-policy/page.tsx - UPDATED WITH WALLET REFUND
 'use client';
 
 import Card, { CardBody } from '@/components/ui/Card';
@@ -23,98 +23,197 @@ export default function RefundPolicyPage() {
             Last updated: February 2026
           </p>
 
-          <div className="bg-orange-50 dark:bg-orange-900/20 border-2 border-orange-200 dark:border-orange-800 p-6 rounded-lg mb-8">
-            <h2 className="text-xl font-bold text-orange-900 dark:text-orange-100 mb-4">
-              ⚠️ Current Policy: No Refunds
+          {/* 🔥 NEW: We Now Offer Refunds Section */}
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-2 border-green-200 dark:border-green-800 p-6 rounded-lg mb-8">
+            <h2 className="text-2xl font-bold text-green-900 dark:text-green-100 mb-4 flex items-center gap-2">
+              ✅ We Now Offer Refunds!
             </h2>
-            <p className="text-orange-800 dark:text-orange-200">
-              At present, ZetaExams does not offer any refunds or cancellations for purchased courses, 
-              subscriptions, or services.
+            <p className="text-green-800 dark:text-green-200 text-lg mb-4">
+              ZetaExams now provides refunds for eligible subscription cancellations.
             </p>
+            <div className="bg-white dark:bg-green-900/30 p-4 rounded-lg">
+              <h3 className="font-semibold text-green-900 dark:text-green-100 mb-3">Refund Eligibility:</h3>
+              <ul className="space-y-2 text-green-800 dark:text-green-200">
+                <li>✓ Subscription used for less than 50% of its duration</li>
+                <li>✓ Original payment subscription (not gift code)</li>
+                <li>✓ 50% of subscription amount credited to wallet</li>
+                <li>✓ Wallet money can only be used for platform subscriptions</li>
+              </ul>
+            </div>
           </div>
 
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-8 mb-4">
-            No Refund Policy (Current)
+            Refund Policy Details
           </h2>
 
-          <ul className="list-disc list-inside space-y-3 mb-6">
-            <li className="text-gray-700 dark:text-gray-300">
-              <strong>All payments made are final</strong>
-            </li>
-            <li className="text-gray-700 dark:text-gray-300">
-              <strong>No refunds will be issued once access is granted</strong>
-            </li>
-            <li className="text-gray-700 dark:text-gray-300">
-              <strong>Users are advised to review details before purchasing</strong>
-            </li>
-          </ul>
-
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-6 rounded-lg mb-8">
+          {/* Eligibility Section */}
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-6 rounded-lg mb-6">
             <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-3">
-              💡 Important Information
+              📋 Refund Eligibility
             </h3>
-            <ul className="space-y-2 text-blue-800 dark:text-blue-200">
-              <li>• Please verify all subscription details before payment</li>
-              <li>• Check the plan duration and features carefully</li>
-              <li>• Ensure you understand the terms before subscribing</li>
-              <li>• Contact support if you have any questions before purchasing</li>
+            <p className="text-blue-800 dark:text-blue-200 mb-4">
+              You are eligible for a refund if:
+            </p>
+            <ul className="list-disc list-inside space-y-2 text-blue-800 dark:text-blue-200">
+              <li>You have used less than 50% of your subscription duration</li>
+              <li>Your subscription was purchased with actual payment (not a gift code)</li>
+              <li>You request the refund through our Support Assistant</li>
             </ul>
           </div>
 
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-8 mb-4">
-            Future Changes
-          </h2>
-
-          <p className="mb-6">
-            ZetaExams may introduce a refund or cancellation policy in the future.
-          </p>
-
-          <div className="bg-purple-50 dark:bg-purple-900/20 p-6 rounded-lg mb-6">
-            <p className="text-purple-900 dark:text-purple-100 mb-4">
-              <strong>If a refund policy is implemented:</strong>
+          {/* Refund Amount */}
+          <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 p-6 rounded-lg mb-6">
+            <h3 className="text-lg font-semibold text-purple-900 dark:text-purple-100 mb-3">
+              💰 Refund Amount
+            </h3>
+            <p className="text-purple-800 dark:text-purple-200 mb-4">
+              <strong>50% of your subscription price</strong> will be credited to your wallet if eligible.
             </p>
-            <ul className="list-disc list-inside space-y-2 text-purple-800 dark:text-purple-200">
-              <li>Terms will be clearly updated on this page</li>
-              <li>Refund eligibility and timelines will be defined</li>
-              <li>All users will be notified of the changes</li>
-            </ul>
+            <div className="bg-white dark:bg-purple-900/30 p-4 rounded-lg">
+              <p className="text-sm text-purple-900 dark:text-purple-100 font-semibold mb-2">Important Notes:</p>
+              <ul className="text-sm space-y-1 text-purple-800 dark:text-purple-200">
+                <li>• Refund is credited to your ZetaExams wallet</li>
+                <li>• Wallet money can ONLY be used for platform subscriptions</li>
+                <li>• Wallet money CANNOT be withdrawn to bank account</li>
+                <li>• Your subscription will be immediately downgraded to FREE</li>
+              </ul>
+            </div>
           </div>
 
-          <p className="mb-8">
-            Continued use of the platform implies acceptance of the current policy.
-          </p>
+          {/* Examples */}
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
+            Examples
+          </h3>
 
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-8 mb-4">
-            Payment Support
-          </h2>
+          <div className="grid md:grid-cols-2 gap-4 mb-6">
+            {/* Eligible Example */}
+            <div className="bg-green-50 dark:bg-green-900/20 border-2 border-green-200 dark:border-green-800 p-4 rounded-lg">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-2xl">✅</span>
+                <h4 className="font-semibold text-green-900 dark:text-green-100">Eligible for Refund</h4>
+              </div>
+              <ul className="space-y-2 text-sm text-green-800 dark:text-green-200">
+                <li>• Subscription: Gold 6-Month</li>
+                <li>• Price Paid: ₹1299</li>
+                <li>• Duration Used: 2 months (33%)</li>
+                <li>• <strong>Refund: ₹649.50 to wallet</strong></li>
+                <li>• New Plan: FREE</li>
+              </ul>
+            </div>
 
-          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-6 rounded-lg">
-            <p className="text-green-900 dark:text-green-100 mb-4">
-              <strong>For payment-related queries or issues:</strong>
-            </p>
-            <ul className="space-y-2 text-green-800 dark:text-green-200">
-              <li>• Payment failures or transaction errors</li>
-              <li>• Subscription not activated after payment</li>
-              <li>• Double charge or incorrect amount deducted</li>
-              <li>• Any other billing concerns</li>
-            </ul>
+            {/* Not Eligible Example */}
+            <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 p-4 rounded-lg">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-2xl">❌</span>
+                <h4 className="font-semibold text-red-900 dark:text-red-100">Not Eligible</h4>
+              </div>
+              <ul className="space-y-2 text-sm text-red-800 dark:text-red-200">
+                <li>• Subscription: Silver 1-Year</li>
+                <li>• Price Paid: ₹399</li>
+                <li>• Duration Used: 8 months (67%)</li>
+                <li>• <strong>Refund: Not eligible (>50% used)</strong></li>
+                <li>• New Plan: Continues until expiry</li>
+              </ul>
+            </div>
           </div>
 
-          <div className="bg-blue-50 dark:bg-blue-900/20 p-6 rounded-lg mt-8">
-            <p className="text-lg mb-2">
-              📧 Contact Us:
+          {/* How to Request */}
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
+            How to Request a Refund
+          </h3>
+
+          <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg mb-6">
+            <ol className="space-y-3">
+              <li className="flex gap-3">
+                <span className="flex-shrink-0 w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">1</span>
+                <div>
+                  <p className="font-semibold text-gray-900 dark:text-gray-100">Go to Support Page</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Navigate to Dashboard → Support</p>
+                </div>
+              </li>
+              <li className="flex gap-3">
+                <span className="flex-shrink-0 w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">2</span>
+                <div>
+                  <p className="font-semibold text-gray-900 dark:text-gray-100">Use Support Assistant</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Type option "3" for subscription cancellation and refund</p>
+                </div>
+              </li>
+              <li className="flex gap-3">
+                <span className="flex-shrink-0 w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">3</span>
+                <div>
+                  <p className="font-semibold text-gray-900 dark:text-gray-100">Confirm Cancellation</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Type "31" to proceed with refund request</p>
+                </div>
+              </li>
+              <li className="flex gap-3">
+                <span className="flex-shrink-0 w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">4</span>
+                <div>
+                  <p className="font-semibold text-gray-900 dark:text-gray-100">Instant Processing</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">System automatically checks eligibility and processes refund</p>
+                </div>
+              </li>
+            </ol>
+          </div>
+
+          {/* Gift Code Subscriptions */}
+          <div className="bg-orange-50 dark:bg-orange-900/20 border-2 border-orange-200 dark:border-orange-800 p-6 rounded-lg mb-6">
+            <h3 className="text-lg font-semibold text-orange-900 dark:text-orange-100 mb-3">
+              🎁 Gift Code Subscriptions
+            </h3>
+            <p className="text-orange-800 dark:text-orange-200">
+              Subscriptions activated using gift codes are <strong>NOT eligible for refunds</strong>. 
+              Gift code subscriptions will remain active until their expiration date.
             </p>
-            <p className="text-xl">
-              <a 
-                href="mailto:support@zetaexams.in" 
-                className="text-purple-600 dark:text-purple-400 font-semibold hover:underline"
+          </div>
+
+          {/* Wallet Usage */}
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
+            Using Your Wallet Money
+          </h3>
+
+          <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 p-6 rounded-lg mb-6">
+            <p className="text-indigo-900 dark:text-indigo-100 mb-4">
+              After receiving a refund to your wallet, you can:
+            </p>
+            <ul className="list-disc list-inside space-y-2 text-indigo-800 dark:text-indigo-200">
+              <li>Purchase any subscription plan (Silver or Gold)</li>
+              <li>Choose any duration (1 month, 6 months, or 1 year)</li>
+              <li>Combine wallet money with additional payment if needed</li>
+            </ul>
+            <p className="mt-4 text-sm font-semibold text-indigo-900 dark:text-indigo-100">
+              ⚠️ Wallet money cannot be withdrawn to your bank account
+            </p>
+          </div>
+
+          {/* Contact Section */}
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
+            Need Help?
+          </h3>
+
+          <div className="bg-blue-50 dark:bg-blue-900/20 p-6 rounded-lg">
+            <p className="text-lg mb-4 text-blue-900 dark:text-blue-100">
+              <strong>Use our Support Assistant for fastest help!</strong>
+            </p>
+            <p className="text-blue-800 dark:text-blue-200 mb-4">
+              For any questions about refunds or cancellations:
+            </p>
+            <div className="flex flex-col gap-3">
+              <Button 
+                onClick={() => router.push('/dashboard/support')}
+                className="justify-center"
               >
-                support@zetaexams.in
-              </a>
-            </p>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-3">
-              Our support team will respond within 24-48 hours
-            </p>
+                Go to Support Assistant →
+              </Button>
+              <p className="text-sm text-center text-blue-700 dark:text-blue-300">
+                or email us at{' '}
+                <a 
+                  href="mailto:support@zetaexams.in" 
+                  className="text-purple-600 dark:text-purple-400 font-semibold hover:underline"
+                >
+                  support@zetaexams.in
+                </a>
+              </p>
+            </div>
           </div>
         </CardBody>
       </Card>

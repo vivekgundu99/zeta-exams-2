@@ -1,4 +1,4 @@
-// frontend/src/app/dashboard/support/page.tsx - INTEGRATED CHATBOT + TICKETS
+// frontend/src/app/dashboard/support/page.tsx - UPDATED WITH TICKETS BUTTON
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -151,31 +151,18 @@ export default function SupportPage() {
         addBotMessage(getRefundMenuMessage());
         break;
       case '4':
-        // Show ticket system
-        if (subscription?.subscription === 'free') {
-          addBotMessage(
-            '❌ Support Tickets Not Available\n\nSupport tickets are only available for Silver and Gold subscribers.\n\nPlease upgrade your plan to access this feature.'
-          );
-          setTimeout(() => {
-            addBotMessage('Would you like to upgrade?\n\nType "upgrade" to view plans or any number to continue.');
-          }, 2000);
-        } else {
-          addBotMessage('Loading your support tickets...');
-          loadTickets();
-          setTimeout(() => {
-            setShowTicketView(true);
-          }, 1000);
-        }
+        // 🔥 UPDATED: No subscription check - all users can access tickets
+        addBotMessage('Loading your support tickets...');
+        loadTickets();
+        setTimeout(() => {
+          setShowTicketView(true);
+        }, 1000);
         break;
       default:
-        if (input.toLowerCase() === 'upgrade') {
-          router.push('/subscription');
-        } else {
-          addBotMessage('Invalid option. Please select a valid number.');
-          setTimeout(() => {
-            addBotMessage(getMainMenuMessage());
-          }, 1000);
-        }
+        addBotMessage('Invalid option. Please select a valid number.');
+        setTimeout(() => {
+          addBotMessage(getMainMenuMessage());
+        }, 1000);
     }
   };
 
@@ -310,7 +297,7 @@ export default function SupportPage() {
           }, 2000);
         } else {
           addBotMessage(
-            `❌ Refund Not Eligible\n\n${data.message}\n\nSubscription not cancelled and no refund (>50% period used).`
+            `❌ Refund Not Eligible\n\n${data.message}\n\nSubscription cancelled but no refund (>50% period used).`
           );
           setTimeout(() => {
             loadSubscription();
@@ -494,6 +481,26 @@ export default function SupportPage() {
           </div>
         </div>
 
+        {/* 🔥 UPDATED: Info card for ALL users */}
+        <Card className="bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-800">
+          <CardBody className="p-4">
+            <div className="flex items-start gap-3">
+              <div className="text-2xl">ℹ️</div>
+              <div>
+                <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
+                  Support Tickets Information
+                </h3>
+                <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
+                  <li>• All users can create 1 ticket per day</li>
+                  <li>• Maximum 10 messages per ticket</li>
+                  <li>• Response within 24-48 hours</li>
+                  <li>• Limits reset daily at 4 AM IST</li>
+                </ul>
+              </div>
+            </div>
+          </CardBody>
+        </Card>
+
         {/* Active Tickets */}
         {activeTickets.length > 0 && (
           <div>
@@ -599,7 +606,7 @@ export default function SupportPage() {
             <div className="bg-blue-50 dark:bg-blue-900/30 p-3 rounded-lg text-sm text-blue-800 dark:text-blue-200">
               <p className="font-semibold mb-1">Important:</p>
               <ul className="space-y-1">
-                <li>• You can create 1 ticket per day</li>
+                <li>• All users can create 1 ticket per day</li>
                 <li>• Maximum 10 messages per ticket</li>
                 <li>• Response within 24-48 hours</li>
               </ul>
@@ -721,7 +728,25 @@ export default function SupportPage() {
 
   // Show Chatbot View
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto space-y-6">
+      {/* 🔥 NEW: Support Tickets Button */}
+      <div className="flex justify-end">
+        <Button
+          variant="outline"
+          onClick={() => {
+            loadTickets();
+            setShowTicketView(true);
+          }}
+          leftIcon={
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+            </svg>
+          }
+        >
+          View Support Tickets
+        </Button>
+      </div>
+
       <Card>
         <CardBody className="p-0">
           {/* Header */}
