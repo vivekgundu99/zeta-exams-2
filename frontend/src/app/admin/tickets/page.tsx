@@ -1,3 +1,4 @@
+// frontend/src/app/admin/tickets/page.tsx - WITH EMAIL SEARCH FOR CLOSED TICKETS
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -14,6 +15,7 @@ export default function AdminTicketsPage() {
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
   const [replyMessage, setReplyMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [emailSearch, setEmailSearch] = useState('');
 
   useEffect(() => {
     loadTickets();
@@ -113,6 +115,12 @@ export default function AdminTicketsPage() {
   const activeTickets = tickets.filter(t => t.status === 'active');
   const closedTickets = tickets.filter(t => t.status === 'inactive');
 
+  // 🔥 NEW: Filter closed tickets by email
+  const filteredClosedTickets = closedTickets.filter(ticket => {
+    if (!emailSearch.trim()) return true;
+    return ticket.userEmail.toLowerCase().includes(emailSearch.toLowerCase());
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -168,7 +176,6 @@ export default function AdminTicketsPage() {
                             {ticket.subscriptionDetails.subscription.toUpperCase()}
                           </span>
                           
-                          {/* 🔥 NEW: Show Subscription Type */}
                           <span className={`px-2 py-0.5 rounded font-semibold text-xs ${
                             ticket.subscriptionDetails.subscriptionType === 'giftcode'
                               ? 'bg-green-100 text-green-700'
@@ -227,15 +234,32 @@ export default function AdminTicketsPage() {
           </CardBody>
         </Card>
 
-        {/* Closed Tickets */}
+        {/* Closed Tickets with Email Search */}
         <Card>
           <CardBody>
             <h3 className="font-semibold mb-4 text-green-600">✅ Closed Tickets</h3>
-            {closedTickets.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">No closed tickets</div>
+            
+            {/* 🔥 NEW: Email Search */}
+            <div className="mb-4">
+              <Input
+                placeholder="Search by email..."
+                value={emailSearch}
+                onChange={(e) => setEmailSearch(e.target.value)}
+                leftIcon={
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                }
+              />
+            </div>
+
+            {filteredClosedTickets.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                {emailSearch.trim() ? 'No closed tickets found for this email' : 'No closed tickets'}
+              </div>
             ) : (
               <div className="space-y-3 max-h-[600px] overflow-y-auto">
-                {closedTickets.map((ticket) => (
+                {filteredClosedTickets.map((ticket) => (
                   <div
                     key={ticket.ticketNumber}
                     className="p-4 border rounded-lg bg-gray-50 cursor-pointer hover:bg-gray-100"
@@ -250,6 +274,7 @@ export default function AdminTicketsPage() {
                       </span>
                     </div>
                     <p className="font-semibold text-gray-700 mb-1">{ticket.userName}</p>
+                    <p className="text-xs text-gray-600 mb-2">{ticket.userEmail}</p>
                     <p className="text-sm text-gray-600 line-clamp-2">{ticket.issue}</p>
                   </div>
                 ))}
@@ -287,7 +312,6 @@ export default function AdminTicketsPage() {
                     </p>
                   </div>
                   
-                  {/* 🔥 NEW: Subscription Type */}
                   <div>
                     <p className="text-blue-700 font-medium">Type</p>
                     <p className={`font-bold ${
@@ -399,7 +423,7 @@ export default function AdminTicketsPage() {
                   </Button>
                 </div>
 
-                {/* Refund Actions - Only show for active tickets */}
+                {/* Refund Actions */}
                 <div className="pt-4 border-t space-y-2">
                   <h4 className="font-semibold text-gray-900">Refund Actions:</h4>
                   

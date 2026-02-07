@@ -1,3 +1,4 @@
+// frontend/src/app/admin/users/page.tsx - UPDATED WITH VIEW ALL BUTTON
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -17,14 +18,11 @@ export default function AdminUsersPage() {
   });
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showAllUsers, setShowAllUsers] = useState(false);
   
   // View Details Modal State
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [viewModal, setViewModal] = useState(false);
-
-  useEffect(() => {
-    loadUsers(1);
-  }, []);
 
   const loadUsers = async (page: number) => {
     try {
@@ -39,6 +37,11 @@ export default function AdminUsersPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleViewAll = () => {
+    setShowAllUsers(true);
+    loadUsers(1);
   };
 
   const handleDeactivate = async (userId: string, userName: string) => {
@@ -89,132 +92,155 @@ export default function AdminUsersPage() {
           <h1 className="text-2xl font-bold">User Management</h1>
           <p className="text-gray-600">Total Users: {pagination.totalUsers}</p>
         </div>
+        
+        {!showAllUsers && (
+          <Button onClick={handleViewAll}>
+            📊 View All Users
+          </Button>
+        )}
       </div>
 
-      <Card>
-        <CardBody>
-          <div className="mb-4">
-            <Input
-              placeholder="Search by email, name, or user ID..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              leftIcon={
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              }
-            />
-          </div>
-
-          {loading ? (
-            <div className="text-center py-8">Loading users...</div>
-          ) : filteredUsers.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              {searchQuery ? 'No users found matching your search' : 'No users registered yet'}
+      {!showAllUsers ? (
+        <Card>
+          <CardBody className="py-12 text-center">
+            <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <span className="text-3xl">👥</span>
             </div>
-          ) : (
-            <>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">User ID</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Exam</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Subscription</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredUsers.map((user) => (
-                      <tr key={user.userId} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 whitespace-nowrap text-sm font-mono text-gray-600">
-                          {user.userId.substring(0, 12)}...
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {user.name || 'N/A'}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-900">
-                          {user.email}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm">
-                          {user.exam ? (
-                            <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-semibold">
-                              {user.exam.toUpperCase()}
-                            </span>
-                          ) : (
-                            <span className="text-gray-400">Not Set</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm">
-                          <span className={`px-2 py-1 rounded text-xs font-semibold ${getSubscriptionColor(user.subscription)}`}>
-                            {user.subscription?.toUpperCase() || 'FREE'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm">
-                          <span className={`px-2 py-1 rounded text-xs font-semibold ${getStatusColor(user.subscriptionStatus)}`}>
-                            {user.subscriptionStatus || 'active'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap space-x-2">
-                          {/* VIEW DETAILS BUTTON */}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setSelectedUser(user);
-                              setViewModal(true);
-                            }}
-                          >
-                            View
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="danger"
-                            onClick={() => handleDeactivate(user.userId, user.name || user.email)}
-                            disabled={user.subscriptionStatus === 'inactive'}
-                          >
-                            {user.subscriptionStatus === 'inactive' ? 'Deactivated' : 'Deactivate'}
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">User Management</h3>
+            <p className="text-gray-600 mb-4">
+              Click "View All Users" to load and manage all registered users
+            </p>
+            <Button onClick={handleViewAll}>
+              📊 View All Users
+            </Button>
+          </CardBody>
+        </Card>
+      ) : (
+        <Card>
+          <CardBody>
+            <div className="mb-4">
+              <Input
+                placeholder="Search by email, name, or user ID..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                leftIcon={
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                }
+              />
+            </div>
 
-              {/* Pagination */}
-              {pagination.totalPages > 1 && (
-                <div className="mt-6 flex items-center justify-between">
-                  <p className="text-sm text-gray-600">
-                    Page {pagination.currentPage} of {pagination.totalPages}
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => loadUsers(pagination.currentPage - 1)}
-                      disabled={pagination.currentPage === 1}
-                    >
-                      Previous
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => loadUsers(pagination.currentPage + 1)}
-                      disabled={pagination.currentPage === pagination.totalPages}
-                    >
-                      Next
-                    </Button>
-                  </div>
+            {loading ? (
+              <div className="text-center py-8">Loading users...</div>
+            ) : filteredUsers.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                {searchQuery ? 'No users found matching your search' : 'No users registered yet'}
+              </div>
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">User ID</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Exam</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Subscription</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {filteredUsers.map((user) => (
+                        <tr key={user.userId} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 whitespace-nowrap text-sm font-mono text-gray-600">
+                            {user.userId.substring(0, 12)}...
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {user.name || 'N/A'}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900">
+                            {user.email}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm">
+                            {user.exam ? (
+                              <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-semibold">
+                                {user.exam.toUpperCase()}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">Not Set</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm">
+                            <span className={`px-2 py-1 rounded text-xs font-semibold ${getSubscriptionColor(user.subscription)}`}>
+                              {user.subscription?.toUpperCase() || 'FREE'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm">
+                            <span className={`px-2 py-1 rounded text-xs font-semibold ${getStatusColor(user.subscriptionStatus)}`}>
+                              {user.subscriptionStatus || 'active'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap space-x-2">
+                            {/* VIEW DETAILS BUTTON */}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedUser(user);
+                                setViewModal(true);
+                              }}
+                            >
+                              View
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="danger"
+                              onClick={() => handleDeactivate(user.userId, user.name || user.email)}
+                              disabled={user.subscriptionStatus === 'inactive'}
+                            >
+                              {user.subscriptionStatus === 'inactive' ? 'Deactivated' : 'Deactivate'}
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              )}
-            </>
-          )}
-        </CardBody>
-      </Card>
+
+                {/* Pagination */}
+                {pagination.totalPages > 1 && (
+                  <div className="mt-6 flex items-center justify-between">
+                    <p className="text-sm text-gray-600">
+                      Page {pagination.currentPage} of {pagination.totalPages}
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => loadUsers(pagination.currentPage - 1)}
+                        disabled={pagination.currentPage === 1}
+                      >
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => loadUsers(pagination.currentPage + 1)}
+                        disabled={pagination.currentPage === pagination.totalPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </CardBody>
+        </Card>
+      )}
 
       {/* VIEW USER DETAILS MODAL */}
       <Modal

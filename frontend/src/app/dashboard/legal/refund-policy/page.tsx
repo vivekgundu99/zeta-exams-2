@@ -111,7 +111,7 @@ export default function RefundPolicyPage() {
                 <li>• Subscription: Silver 1-Year</li>
                 <li>• Price Paid: ₹399</li>
                 <li>• Duration Used: 8 months (67%)</li>
-                <li>• <strong>Refund: Not eligible (>50% used)</strong></li>
+                <li>• <strong>Refund: Not eligible (&gt;50% used)</strong></li>
                 <li>• New Plan: Continues until expiry</li>
               </ul>
             </div>
