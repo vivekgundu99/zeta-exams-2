@@ -58,8 +58,8 @@ export default function WalletPage() {
   const handleTopup = async () => {
     const amount = parseInt(topupAmount);
 
-    if (!amount || amount < 50 || amount > 5000) {
-      toast.error('Amount must be between ₹50 and ₹5000');
+    if (!amount || amount < 10 || amount > 5000) {
+      toast.error('Amount must be between ₹10 and ₹5000');
       return;
     }
 
@@ -195,7 +195,7 @@ export default function WalletPage() {
               <span className="text-3xl">💳</span>
             </div>
             <h3 className="font-bold text-gray-900 dark:text-gray-100 mb-2">Top-up Wallet</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Add ₹50 - ₹5000 to your wallet</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Add ₹10 - ₹5000 to your wallet</p>
           </CardBody>
         </Card>
 
@@ -270,11 +270,11 @@ export default function WalletPage() {
         <div className="space-y-4">
           <Input
             type="number"
-            label="Amount (₹50 - ₹5000)"
+            label="Amount (₹10 - ₹5000)"
             value={topupAmount}
             onChange={(e) => setTopupAmount(e.target.value)}
             placeholder="Enter amount"
-            min={50}
+            min={10}
             max={5000}
           />
           <div className="grid grid-cols-3 gap-2">
@@ -293,7 +293,7 @@ export default function WalletPage() {
             fullWidth
             onClick={handleTopup}
             isLoading={processingTopup}
-            disabled={!topupAmount || parseInt(topupAmount) < 50 || parseInt(topupAmount) > 5000}
+            disabled={!topupAmount || parseInt(topupAmount) < 10 || parseInt(topupAmount) > 5000}
           >
             Add ₹{topupAmount || 0} to Wallet
           </Button>

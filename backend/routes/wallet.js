@@ -1,4 +1,4 @@
-// backend/routes/wallet.js - USER WALLET ROUTES
+// backend/routes/wallet.js - FIXED RECEIPT LENGTH
 const express = require('express');
 const router = express.Router();
 const Razorpay = require('razorpay');
@@ -58,12 +58,21 @@ router.post('/topup/create-order', authenticate, async (req, res) => {
       });
     }
 
+    // 🔥 FIX: Shorten receipt to stay under 40 characters
+    const timestamp = Date.now().toString(36); // Convert to base36 for shorter string
+    const userIdShort = req.user.userId.substring(0, 10); // Take first 10 chars
+    const receipt = `WT_${userIdShort}_${timestamp}`; // WT = Wallet Topup
+
+    console.log('📝 Receipt ID:', receipt, 'Length:', receipt.length);
+
     const options = {
       amount: amount * 100, // Amount in paise
       currency: 'INR',
-      receipt: `wallet_topup_${req.user.userId}_${Date.now()}`,
+      receipt: receipt,
       payment_capture: 1
     };
+
+    console.log('✅ Creating Razorpay order...');
 
     const order = await razorpay.orders.create(options);
 

@@ -1,4 +1,4 @@
-// backend/routes/subscriptionCancelRoute.js - USER CANCEL/REFUND ROUTE (CORRECTED LOGIC)
+// backend/routes/subscriptionCancelRoute.js - FIXED FOR WALLET PURCHASES
 const express = require('express');
 const router = express.Router();
 const RefundRequest = require('../models/RefundRequest');
@@ -6,10 +6,10 @@ const Subscription = require('../models/Subscription');
 const Limits = require('../models/Limits');
 const Wallet = require('../models/Wallet');
 const { authenticate } = require('../middleware/auth');
-const { getNextResetTime } = require('../utils/helpers');
+const { getNextResetTime, getSubscriptionPrice } = require('../utils/helpers');
 
 // @route   POST /api/subscription/cancel-refund
-// @desc    Cancel subscription ONLY if <50% used, with 50% refund to wallet
+// @desc    Cancel subscription with 50% refund to wallet if <50% used
 // @access  Private
 router.post('/cancel-refund', authenticate, async (req, res) => {
   try {
@@ -22,6 +22,7 @@ router.post('/cancel-refund', authenticate, async (req, res) => {
     const subscription = await Subscription.findOne({ userId });
 
     if (!subscription) {
+      console.log('❌ No subscription found');
       return res.status(404).json({
         success: false,
         message: 'No subscription found'
@@ -30,6 +31,7 @@ router.post('/cancel-refund', authenticate, async (req, res) => {
 
     // Check if user has active paid subscription
     if (subscription.subscription === 'free') {
+      console.log('❌ User is on FREE plan');
       return res.status(400).json({
         success: false,
         message: 'No active subscription to cancel'
@@ -38,10 +40,12 @@ router.post('/cancel-refund', authenticate, async (req, res) => {
 
     // Check if subscription is from gift code (NOT ELIGIBLE)
     if (subscription.subscriptionType === 'giftcode') {
+      console.log('❌ Gift code subscription - not eligible');
       return res.status(400).json({
         success: false,
         message: 'Gift code subscriptions cannot be refunded',
-        refunded: false
+        refunded: false,
+        cancelled: false
       });
     }
 
@@ -57,58 +61,115 @@ router.post('/cancel-refund', authenticate, async (req, res) => {
     console.log('📊 Refund calculation:', {
       totalDuration: Math.floor(totalDuration / (1000 * 60 * 60 * 24)) + ' days',
       elapsedDuration: Math.floor(elapsedDuration / (1000 * 60 * 60 * 24)) + ' days',
-      percentageUsed: percentageUsed.toFixed(2) + '%'
+      percentageUsed: percentageUsed.toFixed(2) + '%',
+      plan: subscription.subscription,
+      type: subscription.subscriptionType
     });
 
-    // 🔥 CRITICAL: Check if >=50% used - REJECT cancellation
+    // 🔥 CRITICAL: Check if >=50% used - REJECT and NO DOWNGRADE
     if (percentageUsed >= 50) {
-      console.log('❌ Not eligible for cancellation - more than 50% used');
+      console.log('❌ Not eligible - more than 50% used - NO DOWNGRADE');
       
-      return res.status(400).json({
+      return res.json({
         success: false,
         refunded: false,
         cancelled: false,
-        message: 'Cannot cancel subscription. More than 50% of subscription period has elapsed. Your subscription will remain active until expiry.',
+        message: `Cannot cancel subscription. More than 50% of subscription period has elapsed (${percentageUsed.toFixed(1)}% used). Your subscription will remain active until expiry.`,
         percentageUsed: percentageUsed.toFixed(2),
         daysRemaining: Math.ceil((subscriptionEnd - now) / (1000 * 60 * 60 * 24)),
         expiryDate: subscriptionEnd.toISOString()
       });
     }
 
-    // 🔥 ONLY PROCEED IF <50% USED
+    // 🔥 ELIGIBLE FOR REFUND (<50% used)
+    console.log('✅ Eligible for refund - less than 50% used');
 
-    // Get subscription amount from payment details
+    // 🔥 FIX: Get subscription amount from MULTIPLE sources
+    let subscriptionAmount = 0;
+    let paymentSource = '';
+
+    // Try 1: Check PaymentDetails (Razorpay purchases)
     const PaymentDetails = require('../models/PaymentDetails');
-    const payment = await PaymentDetails.findOne({
+    const razorpayPayment = await PaymentDetails.findOne({
       userId: userId,
       subscriptionPlan: subscription.subscription,
       status: 'success'
     }).sort({ createdAt: -1 });
 
-    if (!payment) {
-      return res.status(404).json({
+    if (razorpayPayment) {
+      subscriptionAmount = razorpayPayment.amount;
+      paymentSource = 'razorpay';
+      console.log('💳 Found Razorpay payment:', subscriptionAmount);
+    } else {
+      // Try 2: Check Wallet transactions (Wallet purchases)
+      const wallet = await Wallet.findOne({ userId });
+      
+      if (wallet) {
+        // Look for the wallet debit transaction for this subscription
+        const walletDebit = wallet.transactions.find(t => 
+          t.type === 'debit' && 
+          t.description.toLowerCase().includes(subscription.subscription.toLowerCase()) &&
+          new Date(t.timestamp) >= subscriptionStart
+        );
+
+        if (walletDebit) {
+          subscriptionAmount = walletDebit.amount;
+          paymentSource = 'wallet';
+          console.log('💰 Found Wallet payment:', subscriptionAmount);
+        }
+      }
+    }
+
+    // Try 3: Fallback - Calculate from pricing table
+    if (subscriptionAmount === 0) {
+      console.log('⚠️ No payment record found - calculating from pricing');
+      
+      // Calculate duration from dates
+      const durationMs = subscriptionEnd - subscriptionStart;
+      const durationDays = Math.floor(durationMs / (1000 * 60 * 60 * 24));
+      
+      let duration = '1month';
+      if (durationDays >= 350) duration = '1year';
+      else if (durationDays >= 170) duration = '6months';
+      
+      const pricing = getSubscriptionPrice(subscription.subscription, duration);
+      if (pricing) {
+        subscriptionAmount = pricing.sp;
+        paymentSource = 'calculated';
+        console.log('📊 Calculated amount from pricing:', subscriptionAmount, 'Duration:', duration);
+      }
+    }
+
+    // If still no amount found, return error
+    if (subscriptionAmount === 0) {
+      console.log('❌ Cannot determine subscription amount');
+      return res.status(400).json({
         success: false,
-        message: 'Payment record not found'
+        refunded: false,
+        cancelled: false,
+        message: 'Cannot process refund - subscription amount not found'
       });
     }
 
     // Calculate 50% refund
-    const refundAmount = Math.floor(payment.amount * 0.5);
+    const refundAmount = Math.floor(subscriptionAmount * 0.5);
     
-    console.log('💰 Refund eligible:', {
-      originalAmount: payment.amount,
-      refundAmount
+    console.log('💰 Refund calculation:', {
+      source: paymentSource,
+      originalAmount: subscriptionAmount,
+      refundAmount: refundAmount,
+      percentageUsed: percentageUsed.toFixed(2)
     });
 
-    // Create refund request
+    // Create refund request record
     const refundRequest = await RefundRequest.create({
       userId: userId,
       subscription: subscription.subscription,
-      subscriptionAmount: payment.amount,
+      subscriptionAmount: subscriptionAmount,
       subscriptionStartDate: subscription.subscriptionStartTime,
       subscriptionEndDate: subscription.subscriptionEndTime,
       reason: reason || 'User requested cancellation',
-      status: 'approved', // Auto-approve since eligible
+      status: 'approved',
       refundAmount: refundAmount,
       processedAt: new Date()
     });
@@ -119,10 +180,10 @@ router.post('/cancel-refund', authenticate, async (req, res) => {
     const wallet = await Wallet.getOrCreateWallet(userId);
     await wallet.adminAddMoney(
       refundAmount,
-      `Refund (50%) for ${subscription.subscription} subscription cancellation`
+      `Refund (50%) for ${subscription.subscription.toUpperCase()} subscription (${paymentSource})`
     );
 
-    console.log('✅ Refund credited to wallet');
+    console.log('✅ Refund credited to wallet:', refundAmount);
 
     // Downgrade to FREE
     subscription.subscription = 'free';
@@ -155,8 +216,9 @@ router.post('/cancel-refund', authenticate, async (req, res) => {
 
     console.log('✅ Subscription cancelled and downgraded to FREE');
 
-    // Return success
+    // Return success with wallet balance
     const currentWallet = await Wallet.findOne({ userId });
+    
     return res.json({
       success: true,
       refunded: true,
@@ -164,15 +226,20 @@ router.post('/cancel-refund', authenticate, async (req, res) => {
       message: 'Subscription cancelled successfully and 50% refund processed to wallet',
       refundAmount: refundAmount,
       walletBalance: currentWallet?.balance || 0,
-      percentageUsed: percentageUsed.toFixed(2)
+      percentageUsed: percentageUsed.toFixed(2),
+      paymentSource: paymentSource
     });
 
   } catch (error) {
     console.error('❌ Cancel/Refund Error:', error);
+    console.error('Stack:', error.stack);
+    
     return res.status(500).json({
       success: false,
+      refunded: false,
+      cancelled: false,
       message: 'Internal server error',
-      error: error.message
+      error: process.env.NODE_ENV === 'production' ? 'Server error' : error.message
     });
   }
 });

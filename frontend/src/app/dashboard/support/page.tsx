@@ -224,7 +224,7 @@ export default function SupportPage() {
       '23': '📖 Formulas:\n\nQuick reference guide.\n\nAvailability:\n• Gold plan only ✅',
       '24': '📋 Tasks:\n\nPersonal task manager.\n\nCreate up to 10 active tasks with due dates.',
       '25': '🎯 Mock Tests:\n\nFull-length practice tests.\n\nAvailability:\n• Gold: 8 tests/day ✅',
-      '26': '💰 Wallet:\n\nDigital wallet for subscriptions.\n\nAdd ₹50-₹5000 per transaction.',
+      '26': '💰 Wallet:\n\nDigital wallet for subscriptions.\n\nAdd ₹10-₹5000 per transaction.',
       '27': '📊 Analytics:\n\nPerformance tracking.\n\nAvailability:\n• Gold plan only ✅',
       '28': '👤 Account:\n\nManage profile and settings.\n\nChange password, edit details, view subscription.',
     };
@@ -310,7 +310,7 @@ export default function SupportPage() {
           }, 2000);
         } else {
           addBotMessage(
-            `❌ Refund Not Eligible\n\n${data.message}\n\nSubscription cancelled but no refund (>50% period used).`
+            `❌ Refund Not Eligible\n\n${data.message}\n\nSubscription not cancelled and no refund (>50% period used).`
           );
           setTimeout(() => {
             loadSubscription();
