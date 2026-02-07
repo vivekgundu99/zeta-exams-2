@@ -1,9 +1,9 @@
-// backend/models/RefundRequest.js - REFUND REQUEST MODEL
+// backend/models/RefundRequest.js - REFUND REQUEST MODEL (FIXED)
 const mongoose = require('mongoose');
 
 const refundRequestSchema = new mongoose.Schema({
   userId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: String, // 🔥 FIXED: Changed from ObjectId to String to match User.userId
     ref: 'User',
     required: true,
   },
@@ -44,6 +44,12 @@ const refundRequestSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+}, {
+  timestamps: true
 });
+
+// Index for faster queries
+refundRequestSchema.index({ userId: 1 });
+refundRequestSchema.index({ status: 1 });
 
 module.exports = mongoose.model('RefundRequest', refundRequestSchema);

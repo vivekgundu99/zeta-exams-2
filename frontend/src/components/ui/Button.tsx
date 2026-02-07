@@ -1,11 +1,11 @@
-// frontend/src/components/ui/Button.tsx - UPDATED
+// frontend/src/components/ui/Button.tsx - UPDATED WITH SUCCESS VARIANT
 'use client';
 
 import { ButtonHTMLAttributes, FC } from 'react';
 import { cn } from '@/lib/utils';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'danger' | 'outline' | 'ghost';
+  variant?: 'primary' | 'secondary' | 'danger' | 'success' | 'outline' | 'ghost';
   size?: 'sm' | 'md' | 'lg';
   isLoading?: boolean;
   fullWidth?: boolean;
@@ -35,6 +35,8 @@ const Button: FC<ButtonProps> = ({
       'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600 focus:ring-gray-400',
     danger:
       'bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-500/50 dark:shadow-red-500/30 focus:ring-red-500',
+    success:
+      'bg-green-600 text-white hover:bg-green-700 shadow-lg shadow-green-500/50 dark:shadow-green-500/30 focus:ring-green-500',
     outline:
       'border-2 border-purple-600 dark:border-purple-500 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 focus:ring-purple-500',
     ghost:

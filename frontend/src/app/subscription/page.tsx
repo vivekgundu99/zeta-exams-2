@@ -8,6 +8,7 @@ import Input from '@/components/ui/Input';
 import Card, { CardBody, CardFooter } from '@/components/ui/Card';
 import { subscriptionAPI, paymentAPI, giftCodesAPI } from '@/lib/api';
 import { storage, formatCurrency } from '@/lib/utils';
+import Link from 'next/link';
 
 declare global {
   interface Window {
@@ -327,6 +328,8 @@ export default function SubscriptionPage() {
                               {formatCurrency(price.mrp)}
                             </span>
                           </div>
+                          
+                          {/* Razorpay Payment Button */}
                           <Button
                             fullWidth
                             size="sm"
@@ -336,6 +339,18 @@ export default function SubscriptionPage() {
                           >
                             {currentPlan === plan.id ? 'Current Plan' : 'Subscribe Now'}
                           </Button>
+                          
+                          {/* 🔥 NEW: Wallet Purchase Button */}
+                          <Link href="/dashboard/wallet">
+                            <Button
+                              fullWidth
+                              size="sm"
+                              variant="outline"
+                              className="mt-2"
+                            >
+                              💰 Buy with Wallet
+                            </Button>
+                          </Link>
                         </div>
                       ))}
                     </div>

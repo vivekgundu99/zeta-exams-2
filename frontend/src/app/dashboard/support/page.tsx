@@ -1,4 +1,4 @@
-// frontend/src/app/dashboard/support/page.tsx - CHATBOT STYLE SUPPORT
+// frontend/src/app/dashboard/support/page.tsx - INTEGRATED CHATBOT + TICKETS
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -7,6 +7,7 @@ import { toast } from 'react-hot-toast';
 import Card, { CardBody } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
+import Modal from '@/components/ui/Modal';
 import Loader from '@/components/ui/Loader';
 import { userAPI } from '@/lib/api';
 import { storage } from '@/lib/utils';
@@ -28,9 +29,18 @@ export default function SupportPage() {
   const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Ticket System States
+  const [showTicketView, setShowTicketView] = useState(false);
+  const [tickets, setTickets] = useState<any[]>([]);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [issue, setIssue] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const [replyMessage, setReplyMessage] = useState('');
+  const [sending, setSending] = useState(false);
+
   useEffect(() => {
     loadSubscription();
-    // Show initial message
     addBotMessage(getMainMenuMessage());
   }, []);
 
@@ -75,7 +85,7 @@ export default function SupportPage() {
 1. I have problem with login
 2. I have problem with website features
 3. I want to cancel my subscription and want refund
-4. Other`;
+4. Other (Create Support Ticket)`;
   };
 
   const getLoginMenuMessage = () => {
@@ -115,7 +125,6 @@ export default function SupportPage() {
     addUserMessage(input);
     setUserInput('');
 
-    // Process based on current menu
     if (currentMenu === 'main') {
       handleMainMenu(input);
     } else if (currentMenu === 'login') {
@@ -142,18 +151,31 @@ export default function SupportPage() {
         addBotMessage(getRefundMenuMessage());
         break;
       case '4':
-        addBotMessage(
-          'Please create a support ticket to chat with our team. You will be redirected to the ticket creation page.'
-        );
-        setTimeout(() => {
-          router.push('/dashboard/tickets');
-        }, 2000);
+        // Show ticket system
+        if (subscription?.subscription === 'free') {
+          addBotMessage(
+            '❌ Support Tickets Not Available\n\nSupport tickets are only available for Silver and Gold subscribers.\n\nPlease upgrade your plan to access this feature.'
+          );
+          setTimeout(() => {
+            addBotMessage('Would you like to upgrade?\n\nType "upgrade" to view plans or any number to continue.');
+          }, 2000);
+        } else {
+          addBotMessage('Loading your support tickets...');
+          loadTickets();
+          setTimeout(() => {
+            setShowTicketView(true);
+          }, 1000);
+        }
         break;
       default:
-        addBotMessage('Invalid option. Please select a valid number.');
-        setTimeout(() => {
-          addBotMessage(getMainMenuMessage());
-        }, 1000);
+        if (input.toLowerCase() === 'upgrade') {
+          router.push('/subscription');
+        } else {
+          addBotMessage('Invalid option. Please select a valid number.');
+          setTimeout(() => {
+            addBotMessage(getMainMenuMessage());
+          }, 1000);
+        }
     }
   };
 
@@ -177,7 +199,7 @@ export default function SupportPage() {
         break;
       case '13':
         addBotMessage(
-          '✏️ Change User Details:\n\nYou can change your user details in the Account section.\n\nSteps:\n1. Go to Dashboard\n2. Click "Account" in the sidebar\n3. Click "Edit Details" button\n4. Update your information (name, profession, grade, college, etc.)\n5. Click "Save Changes"\n\nNote: You cannot change your email or phone number after registration.'
+          '✏️ Change User Details:\n\nYou can change your user details in the Account section.\n\nSteps:\n1. Go to Dashboard\n2. Click "Account" in the sidebar\n3. Click "Edit Details" button\n4. Update your information\n5. Click "Save Changes"\n\nNote: Email and phone cannot be changed.'
         );
         setTimeout(() => {
           addBotMessage(getLoginMenuMessage());
@@ -196,80 +218,30 @@ export default function SupportPage() {
   };
 
   const handleFeaturesMenu = (input: string) => {
-    switch (input) {
-      case '21':
-        addBotMessage(
-          '📚 Topic wise Questions:\n\nThis feature allows you to practice questions organized by topics.\n\nHow it works:\n• Select your exam (JEE/NEET)\n• Choose a subject (Physics, Chemistry, Mathematics/Biology)\n• Select a chapter\n• Pick a specific topic\n• Practice questions one by one\n• Get instant feedback with explanations\n• Track your progress\n\nBenefits:\n• Focus on weak topics\n• Build strong fundamentals\n• Topic-by-topic mastery\n• Detailed explanations with images and LaTeX formulas\n\nDaily Limits:\n• Free: 20 questions/day\n• Silver: 200 questions/day\n• Gold: 5000 questions/day'
-        );
-        setTimeout(() => {
-          addBotMessage(getFeaturesMenuMessage());
-        }, 2000);
-        break;
-      case '22':
-        addBotMessage(
-          '📝 Chapter wise Tests:\n\nTake 10-question tests to evaluate your chapter understanding.\n\nFeatures:\n• 10 random questions per chapter\n• Mix of MCQs and Numerical questions\n• Timed practice\n• Instant results and analysis\n• Detailed solutions\n• Filter by favorites (Gold only)\n\nHow to take a test:\n1. Go to "Chapter Tests"\n2. Select subject and chapter\n3. Click "Generate Test"\n4. Answer all 10 questions\n5. Submit to see results\n\nDaily Limits:\n• Free: 0 tests/day (upgrade required)\n• Silver: 10 tests/day\n• Gold: 50 tests/day\n\nNote: You can also select "All Chapters" option to get mixed questions from all chapters in a subject.'
-        );
-        setTimeout(() => {
-          addBotMessage(getFeaturesMenuMessage());
-        }, 2000);
-        break;
-      case '23':
-        addBotMessage(
-          '📖 Formulas:\n\nQuick reference guide for important formulas and concepts.\n\nFeatures:\n• Subject-wise formula sheets\n• Chapter-wise organization\n• High-quality PDF formulas\n• Download and save offline\n• LaTeX-formatted equations\n• Concept summaries\n\nAvailability:\n• Free: Not available ❌\n• Silver: Not available ❌\n• Gold: Full access ✅\n\nHow to access:\n1. Go to "Formulas" (Gold plan required)\n2. Select your exam type\n3. Choose subject and chapter\n4. View or download formula PDFs\n\nPerfect for:\n• Quick revision before exams\n• Last-minute preparation\n• Formula memorization\n• Concept clarity'
-        );
-        setTimeout(() => {
-          addBotMessage(getFeaturesMenuMessage());
-        }, 2000);
-        break;
-      case '24':
-        addBotMessage(
-          '📋 Tasks:\n\nPersonal task manager to organize your study schedule.\n\nFeatures:\n• Create up to 10 active tasks\n• Set due dates and priorities\n• Mark tasks as complete\n• View completed task history (up to 6000 tasks)\n• Get notifications for overdue tasks\n• Track daily progress\n\nHow to use:\n1. Go to "Tasks" in sidebar\n2. Click "Add Task" button\n3. Enter task title (max 50 characters)\n4. Optionally set due date\n5. Click "Create"\n6. Mark as complete when done\n\nTask Management:\n• Edit task title or due date\n• Delete unwanted tasks\n• Complete tasks to move to history\n• View statistics (active, completed, overdue)\n\nPerfect for:\n• Daily study planning\n• Exam preparation scheduling\n• Chapter completion tracking\n• Assignment deadlines\n• Revision reminders'
-        );
-        setTimeout(() => {
-          addBotMessage(getFeaturesMenuMessage());
-        }, 2000);
-        break;
-      case '25':
-        addBotMessage(
-          '🎯 Mock Tests:\n\nFull-length practice tests simulating actual JEE/NEET exams.\n\nTest Structure:\n• JEE: 90 questions (30 Physics + 30 Chemistry + 30 Maths)\n• NEET: 180 questions (45 Physics + 45 Chemistry + 90 Biology)\n• Duration: 3 hours (180 minutes)\n• Mix of MCQs and Numerical questions\n\nFeatures:\n• Real exam interface\n• Timer countdown\n• Question navigation\n• Flag for review\n• Submit answers section-wise\n• Detailed performance analysis\n• Question-wise solutions\n• Time analysis per question\n\nDaily Limits:\n• Free: 0 tests/day (upgrade required)\n• Silver: 0 tests/day (upgrade required)\n• Gold: 8 tests/day ✅\n\nHow to attempt:\n1. Go to "Mock Tests"\n2. Select a test\n3. Click "Start Test"\n4. Answer questions\n5. Submit test\n6. View detailed results\n\nResults include:\n• Score and rank prediction\n• Subject-wise analysis\n• Time management insights\n• Accuracy percentage\n• Correct/incorrect/unattempted breakdown'
-        );
-        setTimeout(() => {
-          addBotMessage(getFeaturesMenuMessage());
-        }, 2000);
-        break;
-      case '26':
-        addBotMessage(
-          '💰 Wallet:\n\nDigital wallet for managing your Zeta Exams account balance.\n\nFeatures:\n• Add money (₹50 - ₹5000 per transaction)\n• Use wallet balance to buy subscriptions\n• View transaction history\n• Secure Razorpay payment integration\n• Admin credit/debit support\n\nHow to add money:\n1. Go to "Wallet"\n2. Click "Add Money"\n3. Enter amount (₹50 - ₹5000)\n4. Complete Razorpay payment\n5. Balance updated instantly\n\nHow to buy subscription:\n1. Go to "Wallet"\n2. Click "Buy Subscription"\n3. Select plan and duration\n4. Confirm purchase\n5. Money deducted from wallet\n6. Subscription activated immediately\n\nTransaction Types:\n• Top-up: Money added via Razorpay\n• Debit: Money used for subscription\n• Admin Credit: Manual addition by admin\n• Admin Debit: Manual deduction by admin\n\nBenefits:\n• No repeated card details entry\n• Quick subscription renewals\n• Track all transactions\n• Refunds credited to wallet (50% on eligible cancellations)'
-        );
-        setTimeout(() => {
-          addBotMessage(getFeaturesMenuMessage());
-        }, 2000);
-        break;
-      case '27':
-        addBotMessage(
-          '📊 Analytics:\n\nAdvanced performance tracking and insights (Gold plan exclusive).\n\nFeatures:\n• Overall performance dashboard\n• Subject-wise statistics\n• Chapter-wise accuracy tracking\n• Strong and weak topic identification\n• Progress over time graphs\n• Question attempt history\n• Accuracy trends\n\nMetrics Tracked:\n• Total questions attempted\n• Correct answers count\n• Overall accuracy percentage\n• Chapter tests completed\n• Mock tests attempted\n• Subject-wise performance\n• Top performing chapters\n• Chapters needing improvement\n\nAvailability:\n• Free: Not available ❌\n• Silver: Not available ❌\n• Gold: Full access ✅\n\nHow to use:\n1. Go to "Analytics" (Gold plan required)\n2. View overall dashboard\n3. Click on subjects for detailed stats\n4. Identify weak chapters\n5. Focus practice on weak areas\n\nInsights provided:\n• Which chapters need more practice\n• Your strongest subjects\n• Accuracy trends over time\n• Recommended focus areas\n• Performance comparison across topics'
-        );
-        setTimeout(() => {
-          addBotMessage(getFeaturesMenuMessage());
-        }, 2000);
-        break;
-      case '28':
-        addBotMessage(
-          '👤 Account:\n\nManage your profile and account settings.\n\nProfile Information:\n• Name and email (view only)\n• Phone number (view only)\n• Profession (Student/Teacher)\n• Grade/Class\n• College name\n• State\n• Life ambition\n• Exam preference (JEE/NEET)\n\nAccount Settings:\n• View subscription details\n• Check plan and validity\n• Change password\n• Edit user details\n• Update profile information\n\nSubscription Details:\n• Current plan (Free/Silver/Gold)\n• Subscription type (Original/Gift Code)\n• Start and end dates\n• Days remaining\n• Auto-renewal status\n\nHow to edit details:\n1. Go to "Account"\n2. Click "Edit Details" button\n3. Update information\n4. Click "Save Changes"\n\nHow to change password:\n1. Go to "Account"\n2. Scroll to "Change Password"\n3. Enter current password\n4. Enter new password\n5. Confirm new password\n6. Click "Update Password"\n\nNote: Email and phone number cannot be changed after registration for security reasons.'
-        );
-        setTimeout(() => {
-          addBotMessage(getFeaturesMenuMessage());
-        }, 2000);
-        break;
-      case '29':
-        setCurrentMenu('main');
-        addBotMessage(getMainMenuMessage());
-        break;
-      default:
-        addBotMessage('Invalid option. Please select a valid number.');
-        setTimeout(() => {
-          addBotMessage(getFeaturesMenuMessage());
-        }, 1000);
+    const responses: { [key: string]: string } = {
+      '21': '📚 Topic wise Questions:\n\nPractice questions organized by topics.\n\nDaily Limits:\n• Free: 20 questions/day\n• Silver: 200 questions/day\n• Gold: 5000 questions/day',
+      '22': '📝 Chapter wise Tests:\n\n10-question tests per chapter.\n\nDaily Limits:\n• Free: 0 tests/day\n• Silver: 10 tests/day\n• Gold: 50 tests/day',
+      '23': '📖 Formulas:\n\nQuick reference guide.\n\nAvailability:\n• Gold plan only ✅',
+      '24': '📋 Tasks:\n\nPersonal task manager.\n\nCreate up to 10 active tasks with due dates.',
+      '25': '🎯 Mock Tests:\n\nFull-length practice tests.\n\nAvailability:\n• Gold: 8 tests/day ✅',
+      '26': '💰 Wallet:\n\nDigital wallet for subscriptions.\n\nAdd ₹50-₹5000 per transaction.',
+      '27': '📊 Analytics:\n\nPerformance tracking.\n\nAvailability:\n• Gold plan only ✅',
+      '28': '👤 Account:\n\nManage profile and settings.\n\nChange password, edit details, view subscription.',
+    };
+
+    if (responses[input]) {
+      addBotMessage(responses[input]);
+      setTimeout(() => {
+        addBotMessage(getFeaturesMenuMessage());
+      }, 2000);
+    } else if (input === '29') {
+      setCurrentMenu('main');
+      addBotMessage(getMainMenuMessage());
+    } else {
+      addBotMessage('Invalid option. Please select a valid number.');
+      setTimeout(() => {
+        addBotMessage(getFeaturesMenuMessage());
+      }, 1000);
     }
   };
 
@@ -292,10 +264,9 @@ export default function SupportPage() {
 
   const processRefund = async () => {
     try {
-      // Check subscription type
       if (subscription.subscriptionType === 'giftcode') {
         addBotMessage(
-          '❌ Refund Not Available\n\nSorry, refunds are not available for gift code subscriptions.\n\nGift code subscriptions cannot be refunded as they were obtained through promotional codes.'
+          '❌ Refund Not Available\n\nSorry, refunds are not available for gift code subscriptions.'
         );
         setTimeout(() => {
           setCurrentMenu('main');
@@ -306,7 +277,7 @@ export default function SupportPage() {
 
       if (subscription.subscription === 'free') {
         addBotMessage(
-          '❌ No Active Subscription\n\nYou are currently on the FREE plan. There is nothing to cancel or refund.'
+          '❌ No Active Subscription\n\nYou are on the FREE plan.'
         );
         setTimeout(() => {
           setCurrentMenu('main');
@@ -315,7 +286,6 @@ export default function SupportPage() {
         return;
       }
 
-      // Process refund
       addBotMessage('Processing your refund request...');
 
       const headers = {
@@ -333,19 +303,15 @@ export default function SupportPage() {
       if (data.success) {
         if (data.refunded) {
           addBotMessage(
-            `✅ Subscription Cancelled & Refund Processed\n\nYour subscription has been cancelled successfully.\n\n💰 Refund Details:\n• Refund Amount: ₹${data.refundAmount}\n• Credited to: Wallet\n• New Balance: ₹${data.walletBalance}\n\nYour account has been downgraded to FREE plan.\n\nThank you for using Zeta Exams! 🙏`
+            `✅ Subscription Cancelled & Refund Processed\n\n💰 Refund Amount: ₹${data.refundAmount}\n• Credited to Wallet\n• New Balance: ₹${data.walletBalance}\n\nDowngraded to FREE plan.`
           );
-
-          // Reload subscription data
           setTimeout(() => {
             loadSubscription();
           }, 2000);
         } else {
           addBotMessage(
-            `❌ Refund Not Eligible\n\n${data.message}\n\nYour subscription has been cancelled and downgraded to FREE plan, but no refund is applicable as more than 50% of the subscription period has elapsed.`
+            `❌ Refund Not Eligible\n\n${data.message}\n\nSubscription cancelled but no refund (>50% period used).`
           );
-
-          // Reload subscription data
           setTimeout(() => {
             loadSubscription();
           }, 2000);
@@ -363,14 +329,136 @@ export default function SupportPage() {
         }, 3000);
       }
     } catch (error: any) {
-      console.error('Refund error:', error);
-      addBotMessage(
-        '❌ Failed to process refund. Please try again or contact support.'
-      );
+      addBotMessage('❌ Failed to process refund. Please try again.');
       setTimeout(() => {
         setCurrentMenu('main');
         addBotMessage(getMainMenuMessage());
       }, 3000);
+    }
+  };
+
+  // Ticket System Functions
+  const getAuthHeaders = () => {
+    const token = storage.get('token');
+    if (!token) {
+      toast.error('Please login again');
+      return null;
+    }
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    };
+  };
+
+  const loadTickets = async () => {
+    try {
+      const headers = getAuthHeaders();
+      if (!headers) return;
+
+      const response = await fetch(`${API_URL}/api/tickets/my-tickets`, {
+        method: 'GET',
+        headers,
+      });
+
+      if (!response.ok) throw new Error('Failed to load tickets');
+
+      const data = await response.json();
+      if (data.success) {
+        setTickets(data.tickets || []);
+      }
+    } catch (error: any) {
+      toast.error('Failed to load tickets');
+    }
+  };
+
+  const createTicket = async () => {
+    if (!issue.trim()) {
+      toast.error('Please describe your issue');
+      return;
+    }
+
+    if (issue.length > 150) {
+      toast.error('Issue must not exceed 150 characters');
+      return;
+    }
+
+    try {
+      setCreating(true);
+      const headers = getAuthHeaders();
+      if (!headers) {
+        setCreating(false);
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/api/tickets/create`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ issue: issue.trim() }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to create ticket');
+      }
+
+      if (data.success) {
+        toast.success('Ticket created successfully!');
+        setShowCreateModal(false);
+        setIssue('');
+        loadTickets();
+      }
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const sendReply = async () => {
+    if (!replyMessage.trim()) {
+      toast.error('Please enter a message');
+      return;
+    }
+
+    if (replyMessage.length > 150) {
+      toast.error('Message must not exceed 150 characters');
+      return;
+    }
+
+    try {
+      setSending(true);
+      const headers = getAuthHeaders();
+      if (!headers) {
+        setSending(false);
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/api/tickets/add-message`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          ticketNumber: selectedTicket.ticketNumber,
+          message: replyMessage.trim(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to send message');
+      }
+
+      if (data.success) {
+        toast.success(`Message sent! ${data.messagesRemaining} messages remaining.`);
+        setReplyMessage('');
+        setSelectedTicket(data.ticket);
+        loadTickets();
+      }
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setSending(false);
     }
   };
 
@@ -382,6 +470,256 @@ export default function SupportPage() {
     );
   }
 
+  // Show Ticket View
+  if (showTicketView) {
+    const activeTickets = tickets.filter((t) => t.status === 'active');
+    const closedTickets = tickets.filter((t) => t.status === 'inactive');
+
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Support Tickets</h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              Active: {activeTickets.length} | Resolved: {closedTickets.length}
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => setShowTicketView(false)}>
+              ← Back to Chat
+            </Button>
+            <Button onClick={() => setShowCreateModal(true)}>
+              + Create Ticket
+            </Button>
+          </div>
+        </div>
+
+        {/* Active Tickets */}
+        {activeTickets.length > 0 && (
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">Active Tickets</h2>
+            <div className="grid gap-4">
+              {activeTickets.map((ticket) => (
+                <Card key={ticket.ticketNumber} className="border-2 border-orange-200 dark:border-orange-800">
+                  <CardBody>
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="font-mono text-lg font-bold text-purple-600 dark:text-purple-400">
+                            {ticket.ticketNumber}
+                          </span>
+                          <span className="px-3 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded-full text-sm font-semibold">
+                            Active
+                          </span>
+                        </div>
+                        <p className="text-gray-700 dark:text-gray-300 mb-2">{ticket.issue}</p>
+                        <div className="flex gap-2 text-xs">
+                          <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-gray-700 dark:text-gray-300">
+                            {ticket.userMessageCount}/{ticket.maxUserMessages} messages used
+                          </span>
+                          <span className="text-gray-500 dark:text-gray-400">
+                            Created: {new Date(ticket.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setSelectedTicket(ticket)}
+                    >
+                      View Conversation
+                    </Button>
+                  </CardBody>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Closed Tickets */}
+        {closedTickets.length > 0 && (
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">Resolved Tickets</h2>
+            <div className="grid gap-4">
+              {closedTickets.map((ticket) => (
+                <Card key={ticket.ticketNumber}>
+                  <CardBody>
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="font-mono text-sm font-bold text-gray-600 dark:text-gray-400">
+                            {ticket.ticketNumber}
+                          </span>
+                          <span className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-sm font-semibold">
+                            Resolved
+                          </span>
+                        </div>
+                        <p className="text-gray-700 dark:text-gray-300 text-sm mb-2">{ticket.issue}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Resolved: {new Date(ticket.resolvedAt || ticket.updatedAt).toLocaleString()}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setSelectedTicket(ticket)}
+                      >
+                        View
+                      </Button>
+                    </div>
+                  </CardBody>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* No Tickets */}
+        {tickets.length === 0 && (
+          <Card>
+            <CardBody className="py-12 text-center">
+              <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-3xl">🎫</span>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">No Tickets</h3>
+              <p className="text-gray-600 dark:text-gray-400 mb-4">You haven't created any support tickets yet</p>
+              <Button onClick={() => setShowCreateModal(true)}>Create Your First Ticket</Button>
+            </CardBody>
+          </Card>
+        )}
+
+        {/* Create Ticket Modal */}
+        <Modal
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          title="Create Support Ticket"
+        >
+          <div className="space-y-4">
+            <div className="bg-blue-50 dark:bg-blue-900/30 p-3 rounded-lg text-sm text-blue-800 dark:text-blue-200">
+              <p className="font-semibold mb-1">Important:</p>
+              <ul className="space-y-1">
+                <li>• You can create 1 ticket per day</li>
+                <li>• Maximum 10 messages per ticket</li>
+                <li>• Response within 24-48 hours</li>
+              </ul>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-100 mb-2">
+                Describe your issue ({issue.length}/150)
+              </label>
+              <textarea
+                value={issue}
+                onChange={(e) => setIssue(e.target.value)}
+                maxLength={150}
+                rows={4}
+                className="w-full px-4 py-2 border-2 rounded-lg focus:border-purple-600 focus:outline-none text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600"
+                placeholder="Describe your issue in detail..."
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <Button onClick={createTicket} isLoading={creating} className="flex-1">
+                Create Ticket
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setShowCreateModal(false)}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </Modal>
+
+        {/* Ticket Detail Modal */}
+        <Modal
+          isOpen={!!selectedTicket}
+          onClose={() => setSelectedTicket(null)}
+          title={`Ticket: ${selectedTicket?.ticketNumber}`}
+          size="lg"
+        >
+          {selectedTicket && (
+            <div className="space-y-4">
+              <div className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-lg">
+                <p className="text-sm text-blue-900 dark:text-blue-100 font-semibold mb-2">Issue:</p>
+                <p className="text-blue-800 dark:text-blue-200">{selectedTicket.issue}</p>
+              </div>
+
+              {/* Conversation */}
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                <h4 className="font-semibold text-gray-900 dark:text-gray-100">
+                  Conversation ({selectedTicket.userMessageCount}/{selectedTicket.maxUserMessages} messages used):
+                </h4>
+                {selectedTicket.conversation.map((msg: any, i: number) => (
+                  <div
+                    key={i}
+                    className={`p-3 rounded-lg ${
+                      msg.sender === 'user'
+                        ? 'bg-gray-100 dark:bg-gray-700 ml-0 mr-8'
+                        : 'bg-purple-100 dark:bg-purple-900/30 ml-8 mr-0'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">
+                        {msg.sender === 'user' ? 'You' : 'Support'}
+                      </span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        {new Date(msg.timestamp).toLocaleString()}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-800 dark:text-gray-200">{msg.message}</p>
+                  </div>
+                ))}
+              </div>
+
+              {selectedTicket.status === 'active' && (
+                <>
+                  {selectedTicket.userMessageCount < selectedTicket.maxUserMessages ? (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-100 mb-2">
+                          Reply ({replyMessage.length}/150)
+                          <span className="text-purple-600 dark:text-purple-400 ml-2">
+                            {selectedTicket.maxUserMessages - selectedTicket.userMessageCount} messages left
+                          </span>
+                        </label>
+                        <textarea
+                          value={replyMessage}
+                          onChange={(e) => setReplyMessage(e.target.value)}
+                          maxLength={150}
+                          rows={3}
+                          className="w-full px-4 py-2 border-2 rounded-lg focus:border-purple-600 focus:outline-none text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600"
+                          placeholder="Type your reply..."
+                        />
+                      </div>
+
+                      <Button onClick={sendReply} isLoading={sending} fullWidth>
+                        Send Reply
+                      </Button>
+                    </>
+                  ) : (
+                    <div className="bg-red-50 dark:bg-red-900/30 p-4 rounded-lg text-center">
+                      <p className="text-red-900 dark:text-red-100 font-semibold">
+                        Maximum messages reached
+                      </p>
+                      <p className="text-sm text-red-700 dark:text-red-200 mt-1">
+                        You've used all {selectedTicket.maxUserMessages} available messages.
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </Modal>
+      </div>
+    );
+  }
+
+  // Show Chatbot View
   return (
     <div className="max-w-4xl mx-auto">
       <Card>

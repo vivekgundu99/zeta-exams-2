@@ -122,14 +122,16 @@ console.log('📍 Registering routes...');
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/user', require('./routes/user'));
 app.use('/api/subscription', require('./routes/subscription'));
+app.use('/api/subscription', require('./routes/subscriptionCancelRoute')); // 🔥 NEW
 app.use('/api/questions', require('./routes/questions'));
 app.use('/api/tests', require('./routes/tests'));
 app.use('/api/formulas', require('./routes/formulas'));
 app.use('/api/mock-tests', require('./routes/mockTests'));
 app.use('/api/analytics', require('./routes/analytics'));
-app.use('/api/tasks', require('./routes/tasks')); // 🔥 NEW: Tasks routes
+app.use('/api/tasks', require('./routes/tasks'));
 app.use('/api/wallet', require('./routes/wallet'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/admin', require('./routes/adminRefundRoute')); // 🔥 NEW
 app.use('/api/admin/wallet', require('./routes/adminWallet'));
 app.use('/api/payment', require('./routes/payment'));
 app.use('/api/tickets', require('./routes/tickets'));
