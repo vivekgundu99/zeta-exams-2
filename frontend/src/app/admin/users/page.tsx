@@ -1,4 +1,4 @@
-// frontend/src/app/admin/users/page.tsx - UPDATED WITH VIEW ALL BUTTON
+// frontend/src/app/admin/users/page.tsx - FIXED WITH SEARCH-FIRST UI
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -7,6 +7,7 @@ import Card, { CardBody } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
+import Loader from '@/components/ui/Loader';
 import { adminAPI } from '@/lib/api';
 
 export default function AdminUsersPage() {
@@ -27,13 +28,19 @@ export default function AdminUsersPage() {
   const loadUsers = async (page: number) => {
     try {
       setLoading(true);
+      console.log('📋 Loading users page:', page);
+      
       const response = await adminAPI.getUsers(page);
+      
+      console.log('✅ Users response:', response.data);
+      
       if (response.data.success) {
         setUsers(response.data.users || []);
         setPagination(response.data.pagination);
       }
-    } catch (error) {
-      toast.error('Failed to load users');
+    } catch (error: any) {
+      console.error('❌ Load users error:', error);
+      toast.error(error.response?.data?.message || 'Failed to load users');
     } finally {
       setLoading(false);
     }
@@ -41,6 +48,7 @@ export default function AdminUsersPage() {
 
   const handleViewAll = () => {
     setShowAllUsers(true);
+    setSearchQuery('');
     loadUsers(1);
   };
 
@@ -60,117 +68,122 @@ export default function AdminUsersPage() {
     }
   };
 
+  // Filter users based on search query
   const filteredUsers = users.filter((user) => {
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
     return (
-      user.email.toLowerCase().includes(query) ||
+      user.email?.toLowerCase().includes(query) ||
       user.name?.toLowerCase().includes(query) ||
-      user.userId.toLowerCase().includes(query)
+      user.userId?.toLowerCase().includes(query)
     );
   });
 
   const getSubscriptionColor = (sub: string) => {
     const colors = {
-      free: 'bg-gray-100 text-gray-700',
-      silver: 'bg-gray-300 text-gray-800',
-      gold: 'bg-yellow-100 text-yellow-800',
+      free: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+      silver: 'bg-gray-300 text-gray-800 dark:bg-gray-600 dark:text-gray-200',
+      gold: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
     };
     return colors[sub as keyof typeof colors] || colors.free;
   };
 
   const getStatusColor = (status: string) => {
     return status === 'active'
-      ? 'bg-green-100 text-green-700'
-      : 'bg-red-100 text-red-700';
+      ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+      : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">User Management</h1>
-          <p className="text-gray-600">Total Users: {pagination.totalUsers}</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">User Management</h1>
+          {showAllUsers && (
+            <p className="text-gray-600 dark:text-gray-400">Total Users: {pagination.totalUsers}</p>
+          )}
         </div>
-        
-        {!showAllUsers && (
-          <Button onClick={handleViewAll}>
-            📊 View All Users
-          </Button>
-        )}
       </div>
 
-      {!showAllUsers ? (
-        <Card>
-          <CardBody className="py-12 text-center">
-            <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="text-3xl">👥</span>
+      {/* SEARCH CARD - ALWAYS VISIBLE */}
+      <Card>
+        <CardBody className="p-6">
+          <div className="mb-4">
+            <Input
+              placeholder="Search by email, name, or user ID..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              leftIcon={
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              }
+            />
+          </div>
+
+          {!showAllUsers && (
+            <div className="text-center py-8">
+              <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-3xl">👥</span>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">User Management</h3>
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
+                Click "View All Users" to load and manage all registered users
+              </p>
+              <Button onClick={handleViewAll}>
+                📊 View All Users
+              </Button>
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">User Management</h3>
-            <p className="text-gray-600 mb-4">
-              Click "View All Users" to load and manage all registered users
-            </p>
-            <Button onClick={handleViewAll}>
-              📊 View All Users
-            </Button>
-          </CardBody>
-        </Card>
-      ) : (
+          )}
+        </CardBody>
+      </Card>
+
+      {/* USERS TABLE - ONLY SHOWN AFTER "VIEW ALL" */}
+      {showAllUsers && (
         <Card>
           <CardBody>
-            <div className="mb-4">
-              <Input
-                placeholder="Search by email, name, or user ID..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                leftIcon={
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                }
-              />
-            </div>
-
             {loading ? (
-              <div className="text-center py-8">Loading users...</div>
+              <div className="text-center py-8">
+                <Loader size="md" text="Loading users..." />
+              </div>
             ) : filteredUsers.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                 {searchQuery ? 'No users found matching your search' : 'No users registered yet'}
               </div>
             ) : (
               <>
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-gray-50 dark:bg-gray-800">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">User ID</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Exam</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Subscription</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">User ID</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Name</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Email</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Exam</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Subscription</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
                       {filteredUsers.map((user) => (
-                        <tr key={user.userId} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 whitespace-nowrap text-sm font-mono text-gray-600">
+                        <tr key={user.userId} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                          <td className="px-4 py-3 whitespace-nowrap text-sm font-mono text-gray-600 dark:text-gray-400">
                             {user.userId.substring(0, 12)}...
                           </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                          <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                             {user.name || 'N/A'}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-900">
+                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
                             {user.email}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap text-sm">
                             {user.exam ? (
-                              <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-semibold">
+                              <span className="px-2 py-1 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded text-xs font-semibold">
                                 {user.exam.toUpperCase()}
                               </span>
                             ) : (
-                              <span className="text-gray-400">Not Set</span>
+                              <span className="text-gray-400 dark:text-gray-500">Not Set</span>
                             )}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap text-sm">
@@ -213,7 +226,7 @@ export default function AdminUsersPage() {
                 {/* Pagination */}
                 {pagination.totalPages > 1 && (
                   <div className="mt-6 flex items-center justify-between">
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
                       Page {pagination.currentPage} of {pagination.totalPages}
                     </p>
                     <div className="flex gap-2">
@@ -221,7 +234,7 @@ export default function AdminUsersPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => loadUsers(pagination.currentPage - 1)}
-                        disabled={pagination.currentPage === 1}
+                        disabled={pagination.currentPage === 1 || loading}
                       >
                         Previous
                       </Button>
@@ -229,7 +242,7 @@ export default function AdminUsersPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => loadUsers(pagination.currentPage + 1)}
-                        disabled={pagination.currentPage === pagination.totalPages}
+                        disabled={pagination.currentPage === pagination.totalPages || loading}
                       >
                         Next
                       </Button>
@@ -253,58 +266,58 @@ export default function AdminUsersPage() {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-sm text-gray-600">User ID</p>
-                <p className="font-mono text-sm">{selectedUser.userId}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">User ID</p>
+                <p className="font-mono text-sm text-gray-900 dark:text-white">{selectedUser.userId}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Name</p>
-                <p className="font-semibold">{selectedUser.name || 'N/A'}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Name</p>
+                <p className="font-semibold text-gray-900 dark:text-white">{selectedUser.name || 'N/A'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Email</p>
-                <p>{selectedUser.email}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Email</p>
+                <p className="text-gray-900 dark:text-white">{selectedUser.email}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Phone</p>
-                <p>{selectedUser.phoneNumber}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Phone</p>
+                <p className="text-gray-900 dark:text-white">{selectedUser.phoneNumber}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Profession</p>
-                <p className="capitalize">{selectedUser.profession || 'N/A'}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Profession</p>
+                <p className="capitalize text-gray-900 dark:text-white">{selectedUser.profession || 'N/A'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Grade</p>
-                <p>{selectedUser.grade || 'N/A'}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Grade</p>
+                <p className="text-gray-900 dark:text-white">{selectedUser.grade || 'N/A'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Exam</p>
-                <p className="uppercase">{selectedUser.exam || 'N/A'}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Exam</p>
+                <p className="uppercase text-gray-900 dark:text-white">{selectedUser.exam || 'N/A'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">College/School</p>
-                <p>{selectedUser.collegeName || 'N/A'}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">College/School</p>
+                <p className="text-gray-900 dark:text-white">{selectedUser.collegeName || 'N/A'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">State</p>
-                <p>{selectedUser.state || 'N/A'}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">State</p>
+                <p className="text-gray-900 dark:text-white">{selectedUser.state || 'N/A'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Life Ambition</p>
-                <p>{selectedUser.lifeAmbition || 'N/A'}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Life Ambition</p>
+                <p className="text-gray-900 dark:text-white">{selectedUser.lifeAmbition || 'N/A'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Subscription</p>
-                <p className="uppercase font-bold">{selectedUser.subscription || 'FREE'}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Subscription</p>
+                <p className="uppercase font-bold text-gray-900 dark:text-white">{selectedUser.subscription || 'FREE'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Subscription Status</p>
-                <p className={`font-bold ${selectedUser.subscriptionStatus === 'active' ? 'text-green-600' : 'text-red-600'}`}>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Subscription Status</p>
+                <p className={`font-bold ${selectedUser.subscriptionStatus === 'active' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                   {selectedUser.subscriptionStatus || 'N/A'}
                 </p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Created</p>
-                <p>{new Date(selectedUser.createdAt).toLocaleDateString()}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Created</p>
+                <p className="text-gray-900 dark:text-white">{new Date(selectedUser.createdAt).toLocaleDateString()}</p>
               </div>
             </div>
           </div>

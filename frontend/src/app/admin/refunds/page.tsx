@@ -1,22 +1,18 @@
-// frontend/src/app/admin/refunds/page.tsx - UPDATED ADMIN REFUND PAGE
+// frontend/src/app/admin/refunds/page.tsx - FIXED CLIENT ERROR
 'use client';
 
 import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import Card, { CardBody } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
 import Loader from '@/components/ui/Loader';
 import { adminAPI } from '@/lib/api';
 
 interface RefundRequest {
   _id: string;
-  userId: {
-    _id: string;
-    name: string;
-    email: string;
-    phone: string;
-  };
+  userId: string;
+  userEmail: string;
+  userName: string;
   subscription: string;
   subscriptionAmount: number;
   subscriptionStartDate: string;
@@ -26,12 +22,15 @@ interface RefundRequest {
   requestedAt: string;
   processedAt?: string;
   refundAmount?: number;
+  currentSubscription?: string;
+  percentageUsed?: number;
 }
 
 export default function AdminRefundsPage() {
   const [refunds, setRefunds] = useState<RefundRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadRefunds();
@@ -39,12 +38,26 @@ export default function AdminRefundsPage() {
 
   const loadRefunds = async () => {
     try {
+      setLoading(true);
+      setError(null);
+      
+      console.log('📋 Loading refund requests...');
+      
       const response = await adminAPI.getRefundRequests();
+      
+      console.log('✅ Refund response:', response.data);
+      
       if (response.data.success) {
-        setRefunds(response.data.refunds);
+        setRefunds(response.data.refunds || []);
+        console.log('✅ Loaded refunds:', response.data.refunds?.length || 0);
+      } else {
+        setError(response.data.message || 'Failed to load refunds');
       }
     } catch (error: any) {
-      toast.error('Failed to load refund requests');
+      console.error('❌ Load refunds error:', error);
+      const errorMsg = error.response?.data?.message || error.message || 'Failed to load refund requests';
+      setError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -54,9 +67,13 @@ export default function AdminRefundsPage() {
     try {
       setProcessing(refundId);
 
+      console.log('🔄 Processing refund:', { refundId, approve });
+
       const response = await adminAPI.processRefund(refundId, {
         approve,
       });
+
+      console.log('✅ Process response:', response.data);
 
       if (response.data.success) {
         toast.success(
@@ -66,10 +83,12 @@ export default function AdminRefundsPage() {
         );
         loadRefunds();
       } else {
-        toast.error(response.data.message);
+        toast.error(response.data.message || 'Failed to process refund');
       }
     } catch (error: any) {
-      toast.error('Failed to process refund');
+      console.error('❌ Process refund error:', error);
+      const errorMsg = error.response?.data?.message || error.message || 'Failed to process refund';
+      toast.error(errorMsg);
     } finally {
       setProcessing(null);
     }
@@ -91,6 +110,10 @@ export default function AdminRefundsPage() {
   };
 
   const calculatePercentageUsed = (refund: RefundRequest) => {
+    if (refund.percentageUsed !== undefined) {
+      return refund.percentageUsed;
+    }
+
     const now = new Date();
     const start = new Date(refund.subscriptionStartDate);
     const end = new Date(refund.subscriptionEndDate);
@@ -105,6 +128,21 @@ export default function AdminRefundsPage() {
       <div className="flex justify-center py-12">
         <Loader size="lg" text="Loading refund requests..." />
       </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="border-2 border-red-200">
+        <CardBody className="p-8 text-center">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-3xl">⚠️</span>
+          </div>
+          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Error Loading Refunds</h3>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
+          <Button onClick={loadRefunds}>Retry</Button>
+        </CardBody>
+      </Card>
     );
   }
 
@@ -168,7 +206,7 @@ export default function AdminRefundsPage() {
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-3">
                           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                            {refund.userId.name}
+                            {refund.userName || 'N/A'}
                           </h3>
                           <span
                             className={`px-3 py-1 rounded-full text-xs font-medium ${
@@ -187,15 +225,15 @@ export default function AdminRefundsPage() {
                               Email
                             </p>
                             <p className="font-medium text-gray-900 dark:text-white">
-                              {refund.userId.email}
+                              {refund.userEmail || 'N/A'}
                             </p>
                           </div>
                           <div>
                             <p className="text-sm text-gray-500 dark:text-gray-400">
-                              Phone
+                              User ID
                             </p>
-                            <p className="font-medium text-gray-900 dark:text-white">
-                              {refund.userId.phone}
+                            <p className="font-medium text-gray-900 dark:text-white font-mono text-xs">
+                              {refund.userId?.substring(0, 12)}...
                             </p>
                           </div>
                           <div>
@@ -325,7 +363,7 @@ export default function AdminRefundsPage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-3">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                          {refund.userId.name}
+                          {refund.userName || 'N/A'}
                         </h3>
                         <span
                           className={`px-3 py-1 rounded-full text-xs font-medium ${
